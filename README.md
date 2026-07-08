@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./docs/branding/logo-dark.svg">
+    <img src="./docs/branding/logo-light.svg" alt="Legal Analyzer logo" width="280">
+  </picture>
+</p>
+
 # Legal Analyzer
 
 **AI-assisted first-pass review for contracts, NDAs, and legal documents — extraction, risk flagging, and reporting in minutes, not days.**
@@ -60,9 +67,16 @@ Run the stack locally, then open the dashboard and upload a sample file:
 docker compose up --build
 # then visit http://localhost:3000 and upload a PDF from /test-documents
 ```
-- **Dashboard** — document list with status and risk level per row *(screenshot placeholder)*
-- **Document view** — split pane, source text with clickable clause highlights *(screenshot placeholder)*
-- **Report view** — printable memorandum layout *(screenshot placeholder)*
+
+> **Note:** screenshots below use a fake sample NDA (placeholder company/party names) — never commit a screenshot containing a real user's document, a real API key, or a real Supabase project URL. See [Security & Secrets](#security--secrets) for the full pre-commit check.
+
+| | |
+|---|---|
+| ![Dashboard view showing the document list with status and risk level per row](./docs/screenshots/dashboard.png) | ![Document view with source text and clickable clause highlights](./docs/screenshots/document-view.png) |
+| **Dashboard** — document list with status and risk level per row | **Document view** — split pane, source text with clickable clause highlights |
+
+![Printable memorandum-style report view](./docs/screenshots/report-view.png)
+**Report view** — printable memorandum layout
 
 ## Quick Start (Install & Run)
 
@@ -220,6 +234,14 @@ Recommended production strategy: containerized backend + managed Postgres + secr
 - Store secrets only in `.env` (local, gitignored) or your host's secret manager — never in code or client bundles.
 - Run `pip-audit` and `npm audit` before each release to scan for known vulnerabilities.
 - **Hardening basics:** restrict CORS to known frontend origins, rate-limit the upload endpoint, validate file type/size server-side (not just in the UI), and treat all extracted document text as untrusted input.
+
+**Before committing any screenshot, GIF, or demo video, check for:**
+- [ ] Only fake/sample documents visible (e.g., "Acme Corp NDA — Jane Doe"), never a real user's real contract
+- [ ] No real API key, token, or `.env` contents visible in any terminal, editor, or network-tab shot
+- [ ] No real Supabase project URL/anon key visible in a settings or dashboard screenshot
+- [ ] No real personal emails, phone numbers, or company names anywhere in frame
+- [ ] Browser chrome (bookmarks bar, profile name) cropped out
+- [ ] For videos/GIFs: scrub through every frame once at full resolution before committing — one visible frame is enough to leak a key
 
 ## Performance & Scaling
 
