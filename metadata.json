@@ -1,0 +1,6 @@
+{
+  "name": "Legal Analyzer",
+  "description": "A serious, document-first workspace for analyzing contracts, NDAs, and legal documents with structured clause extraction, risk assessment, and exportable reports.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
