@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "Legal Analyzer"
     API_V1_STR: str = "/api/v1"
     DATABASE_URL: str = "postgresql://postgres:postgres@localhost:5432/legal"
+    SUPABASE_URL: str = ""
+    SUPABASE_SERVICE_ROLE_KEY: str = ""
     SECRET_KEY: str = "placeholder_secret_key_change_me_in_production"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24 hours
