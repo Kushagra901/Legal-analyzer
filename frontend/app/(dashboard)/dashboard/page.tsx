@@ -1,12 +1,60 @@
+"use client";
+
 /**
  * @file page.tsx
  * @description Dashboard home page displaying lists of documents, overall status, and action controls.
  */
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import { UploadDropzone } from "@/components/documents/upload-dropzone";
+import { apiClient } from "@/lib/api";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Badge } from "@/components/ui/badge";
+
+interface DocumentItem {
+  document_id: string;
+  filename: string;
+  status: string;
+  uploaded_at: string;
+}
 
 export default function DashboardPage() {
+  const [documents, setDocuments] = useState<DocumentItem[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const loadDocuments = async () => {
+    try {
+      setIsLoading(true);
+      const data = await apiClient.fetchDocuments();
+      setDocuments(data);
+      setErrorMessage(null);
+    } catch (err: any) {
+      setErrorMessage(err.message || "Failed to load documents. Please check backend connection.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadDocuments();
+  }, []);
+
+  const handleUploadSuccess = () => {
+    loadDocuments();
+  };
+
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return "";
+    try {
+      return dateStr.split("T")[0];
+    } catch {
+      return dateStr;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#faf9f6] text-[#1c1c1c] font-sans">
       {/* Top Header */}
@@ -41,53 +89,80 @@ export default function DashboardPage() {
               <p className="text-xs text-[#5c5b57] mb-4">
                 Supported formats: PDF, TXT, DOCX. Max size 10MB.
               </p>
-              <div className="border border-dashed border-[#e0dfdb] bg-[#faf9f6] h-32 flex flex-col items-center justify-center text-[#5c5b57] text-xs p-4">
-                <span>Drag & drop file here</span>
-                <span className="text-[10px] text-gray-400 mt-1">or click to browse</span>
-              </div>
+              <UploadDropzone onUploadSuccess={handleUploadSuccess} />
             </div>
-            <button className="w-full bg-[#0d1b2a] hover:bg-[#1a2f4c] text-[#faf9f6] py-2 text-xs font-semibold uppercase tracking-wider rounded-none transition-colors duration-200 mt-4">
-              Upload file
-            </button>
           </div>
 
           {/* Document List Table */}
           <div className="md:col-span-2 border border-[#e0dfdb] bg-white p-6 rounded-none">
             <h3 className="font-serif text-lg mb-4 text-[#0d1b2a]">Recent Documents</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-[#e0dfdb] text-[#5c5b57] uppercase tracking-wider font-semibold">
-                    <th className="py-2.5">Filename</th>
-                    <th className="py-2.5">Date</th>
-                    <th className="py-2.5">Risk Level</th>
-                    <th className="py-2.5 text-right">Score</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="border-b border-[#e0dfdb] hover:bg-[#faf9f6] cursor-pointer">
-                    <td className="py-3 font-semibold text-[#0d1b2a]">
-                      <Link href="/documents/doc_001">Mutual NDA - Apex Tech & Horizon.txt</Link>
-                    </td>
-                    <td className="py-3 text-[#5c5b57]">2025-10-12</td>
-                    <td className="py-3">
-                      <span className="bg-green-100 text-green-800 px-2 py-0.5 font-semibold">LOW</span>
-                    </td>
-                    <td className="py-3 text-right font-mono font-bold">92%</td>
-                  </tr>
-                  <tr className="border-b border-[#e0dfdb] hover:bg-[#faf9f6] cursor-pointer">
-                    <td className="py-3 font-semibold text-[#0d1b2a]">
-                      <Link href="/documents/doc_002">Enterprise SaaS Terms - CloudScale.txt</Link>
-                    </td>
-                    <td className="py-3 text-[#5c5b57]">2025-08-24</td>
-                    <td className="py-3">
-                      <span className="bg-red-100 text-red-800 px-2 py-0.5 font-semibold">HIGH</span>
-                    </td>
-                    <td className="py-3 text-right font-mono font-bold text-red-700">35%</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+            
+            {errorMessage && (
+              <div className="mb-4 p-3 bg-[#faf9f6] border border-[#ff4d4d] text-[#ff4d4d] text-xs flex items-center justify-between">
+                <span>{errorMessage}</span>
+                <button 
+                  onClick={() => setErrorMessage(null)} 
+                  className="text-xs font-bold hover:underline cursor-pointer"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
+
+            {isLoading ? (
+              <div className="space-y-4">
+                {/* Skeletons styled like table rows */}
+                <div className="border-b border-[#e0dfdb] pb-4 flex justify-between items-center animate-pulse">
+                  <div className="h-4 bg-[#e0dfdb] w-1/3"></div>
+                  <div className="h-4 bg-[#e0dfdb] w-1/6"></div>
+                  <div className="h-4 bg-[#e0dfdb] w-1/6"></div>
+                </div>
+                <div className="border-b border-[#e0dfdb] pb-4 flex justify-between items-center animate-pulse">
+                  <div className="h-4 bg-[#e0dfdb] w-1/4"></div>
+                  <div className="h-4 bg-[#e0dfdb] w-1/6"></div>
+                  <div className="h-4 bg-[#e0dfdb] w-1/6"></div>
+                </div>
+                <div className="border-b border-[#e0dfdb] pb-4 flex justify-between items-center animate-pulse">
+                  <div className="h-4 bg-[#e0dfdb] w-1/2"></div>
+                  <div className="h-4 bg-[#e0dfdb] w-1/6"></div>
+                  <div className="h-4 bg-[#e0dfdb] w-1/6"></div>
+                </div>
+              </div>
+            ) : documents.length === 0 ? (
+              <EmptyState 
+                title="No documents yet" 
+                description="Upload a legal document on the left to start a first-pass review."
+              />
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="py-2.5">Filename</TableHead>
+                    <TableHead className="py-2.5">Date</TableHead>
+                    <TableHead className="py-2.5">Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {documents.map((doc) => (
+                    <TableRow key={doc.document_id}>
+                      <TableCell className="py-3 font-semibold text-[#0d1b2a]">
+                        <Link href={`/documents/${doc.document_id}`} className="hover:underline">
+                          {doc.filename}
+                        </Link>
+                      </TableCell>
+                      <TableCell className="py-3 text-[#5c5b57]">
+                        {formatDate(doc.uploaded_at)}
+                      </TableCell>
+                      <TableCell className="py-3">
+                        <Badge variant={doc.status === "processing" ? "neutral" : "low"}>
+                          {doc.status}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
           </div>
         </div>
       </main>

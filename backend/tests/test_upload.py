@@ -6,6 +6,7 @@ Tests file validations, database persistence, and audit logging.
 import io
 import os
 import sys
+import uuid
 import pytest
 from unittest.mock import patch
 from fastapi.testclient import TestClient
@@ -131,3 +132,43 @@ def test_upload_oversized_file():
     assert db.query(Document).count() == 0
     assert db.query(AuditLog).count() == 0
     db.close()
+
+def test_list_documents():
+    """
+    Test retrieving the list of uploaded documents.
+    """
+    from datetime import datetime, timedelta, timezone
+    db = TestingSessionLocal()
+    # Use dummy user UUID
+    user_id = uuid.UUID("00000000-0000-0000-0000-000000000000")
+    now = datetime.now(timezone.utc)
+    doc1 = Document(filename="doc1.pdf", user_id=user_id, status="processing", uploaded_at=now - timedelta(minutes=5))
+    doc2 = Document(filename="doc2.pdf", user_id=user_id, status="completed", uploaded_at=now)
+    db.add(doc1)
+    db.add(doc2)
+    db.commit()
+    db.close()
+    
+    response = client.get("/api/v1/documents")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 2
+    # Ensure they are sorted by uploaded_at desc
+    assert data[0]["filename"] == "doc2.pdf"
+    assert data[1]["filename"] == "doc1.pdf"
+
+def test_ocr_service_decision():
+    """
+    Test the OCR fallback decision threshold in OCRService.
+    """
+    from app.services.ocr_service import OCRService
+    service = OCRService()
+    
+    # 0 characters (scanned) should use OCR
+    assert service.should_use_ocr("") is True
+    # 150 characters (noisy metadata/scanned) should use OCR
+    assert service.should_use_ocr("a" * 150) is True
+    # 250 characters (legitimate text) should NOT use OCR
+    assert service.should_use_ocr("a" * 250) is False
+
+
