@@ -3,31 +3,127 @@
  * @description Report page displaying the final legal memo audit summary.
  */
 
-import React from "react";
+"use client";
+
+/**
+ * @file page.tsx
+ * @description Report page displaying the final legal memo audit summary.
+ */
+
+import React, { useEffect, useState, use } from "react";
 import Link from "next/link";
+import { apiClient } from "@/lib/api";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+
+interface Citation {
+  source: string;
+  citation: string;
+}
+
+interface ReportData {
+  document_id: string;
+  filename: string;
+  uploaded_at: string;
+  safety_score: number;
+  risk_level: string;
+  summary: string;
+  recommendations: string[];
+  citations: Citation[];
+}
 
 interface PageProps {
   params: Promise<{ id: string }>;
 }
 
-export default async function ReportDetailPage({ params }: PageProps) {
-  const resolvedParams = await params;
+export default function ReportDetailPage({ params }: PageProps) {
+  const resolvedParams = use(params);
   const docId = resolvedParams.id;
 
+  const [report, setReport] = useState<ReportData | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchReportData = async () => {
+      try {
+        setIsLoading(true);
+        const data = await apiClient.fetchReport(docId);
+        setReport(data);
+        setError(null);
+      } catch (err: any) {
+        setError(err.message || "Failed to load legal report.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchReportData();
+  }, [docId]);
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return "";
+    try {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#faf9f6] text-[#1c1c1c] font-sans p-8 flex items-center justify-center">
+        <div className="max-w-4xl w-full bg-white border border-[#e0dfdb] p-12 space-y-6 animate-pulse">
+          <div className="h-8 bg-[#e0dfdb] w-1/2"></div>
+          <div className="h-px bg-[#e0dfdb]"></div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="h-10 bg-[#e0dfdb]"></div>
+            <div className="h-10 bg-[#e0dfdb]"></div>
+          </div>
+          <div className="h-24 bg-[#e0dfdb]"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !report) {
+    return (
+      <div className="min-h-screen bg-[#faf9f6] text-[#1c1c1c] font-sans flex flex-col items-center justify-center p-8">
+        <div className="max-w-md w-full border border-[#ff4d4d] bg-white p-6 text-center space-y-4">
+          <h2 className="font-serif text-lg text-[#0d1b2a]">Report Error</h2>
+          <p className="text-xs text-[#5c5b57]">{error || "Failed to load memorandum report."}</p>
+          <Link href={`/documents/${docId}`} className="inline-block bg-[#0d1b2a] text-white px-4 py-2 text-xs font-semibold uppercase tracking-wider hover:bg-[#1a2f4c]">
+            Return to Analysis
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-[#faf9f6] text-[#1c1c1c] font-sans p-8">
+    <div className="min-h-screen bg-[#faf9f6] text-[#1c1c1c] font-sans p-8 print:bg-white print:p-0">
       {/* Back button and Print options for layout */}
-      <div className="max-w-4xl mx-auto mb-6 flex justify-between items-center no-print">
+      <div className="max-w-4xl mx-auto mb-6 flex justify-between items-center print:hidden">
         <Link href={`/documents/${docId}`} className="text-xs text-[#5c5b57] hover:underline uppercase tracking-wider font-semibold">
           &larr; Back to analysis
         </Link>
-        <button className="bg-[#0d1b2a] hover:bg-[#1a2f4c] text-[#faf9f6] px-4 py-1.5 text-xs font-semibold uppercase tracking-wider rounded-none transition-colors duration-200">
+        <button 
+          onClick={handlePrint}
+          className="bg-[#0d1b2a] hover:bg-[#1a2f4c] text-[#faf9f6] px-4 py-1.5 text-xs font-semibold uppercase tracking-wider rounded-none transition-colors duration-200"
+        >
           Print Memo
         </button>
       </div>
 
       {/* Main Memo sheet */}
-      <div className="max-w-4xl mx-auto bg-white border border-[#e0dfdb] p-12 rounded-none space-y-8 shadow-none">
+      <div className="max-w-4xl mx-auto bg-white border border-[#e0dfdb] p-12 rounded-none space-y-8 shadow-none print:border-0 print:p-0">
         {/* Memo Header */}
         <div className="border-b-2 border-[#0d1b2a] pb-6">
           <h1 className="font-serif text-3xl font-normal text-[#0d1b2a] tracking-wide mb-1">
@@ -39,22 +135,22 @@ export default async function ReportDetailPage({ params }: PageProps) {
         </div>
 
         {/* Memo Fields */}
-        <div className="grid grid-cols-2 gap-4 text-xs">
+        <div className="grid grid-cols-2 gap-4 text-xs border-b border-[#e0dfdb] pb-6">
           <div>
             <span className="block text-[#8a8985] uppercase font-semibold">To:</span>
             <span className="text-sm font-semibold">Internal Operations Team</span>
           </div>
           <div>
             <span className="block text-[#8a8985] uppercase font-semibold">Date:</span>
-            <span className="text-sm font-semibold">July 8, 2026</span>
+            <span className="text-sm font-semibold">{formatDate(report.uploaded_at)}</span>
           </div>
           <div>
             <span className="block text-[#8a8985] uppercase font-semibold">Document Ref:</span>
-            <span className="text-sm font-mono font-semibold">{docId}</span>
+            <span className="text-sm font-mono font-semibold">{report.filename} ({report.document_id.substring(0, 8)})</span>
           </div>
           <div>
             <span className="block text-[#8a8985] uppercase font-semibold">Safety Score:</span>
-            <span className="text-sm font-mono font-bold text-green-700">92 / 100</span>
+            <span className="text-sm font-mono font-bold text-green-700">{report.safety_score} / 100</span>
           </div>
         </div>
 
@@ -62,21 +158,43 @@ export default async function ReportDetailPage({ params }: PageProps) {
         <div className="space-y-3">
           <h2 className="font-serif text-xl text-[#0d1b2a] border-b border-[#e0dfdb] pb-2">Executive Summary</h2>
           <p className="text-xs text-[#5c5b57] leading-relaxed">
-            The document under review is a standard Mutual Non-Disclosure Agreement. Based on our analysis, the document represents low exposure and is safe to execute. Reciprocal provisions for confidentiality, duration, governing law, and limitations of liability are fully present.
+            {report.summary}
           </p>
         </div>
 
-        {/* Critical Recommendations */}
+        {/* Key Recommendations */}
         <div className="space-y-3">
           <h2 className="font-serif text-xl text-[#0d1b2a] border-b border-[#e0dfdb] pb-2">Key Recommendations</h2>
           <ol className="list-decimal pl-5 text-xs text-[#5c5b57] space-y-2">
-            <li>Ensure Wilmington, Delaware is an acceptable jurisdiction for your operations before formal execution.</li>
-            <li>No amendments are strictly necessary, as standard mutual clauses protect both parties adequately.</li>
+            {report.recommendations.map((rec, index) => (
+              <li key={index}>{rec}</li>
+            ))}
           </ol>
         </div>
 
+        {/* Citations and References */}
+        <div className="space-y-3 print:break-inside-avoid">
+          <h2 className="font-serif text-xl text-[#0d1b2a] border-b border-[#e0dfdb] pb-2">Governing Citations</h2>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="py-2">Legal Source</TableHead>
+                <TableHead className="py-2">Context</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {report.citations.map((cite, index) => (
+                <TableRow key={index} className="print:hover:bg-white">
+                  <TableCell className="py-2.5 font-semibold text-[#0d1b2a]">{cite.source}</TableCell>
+                  <TableCell className="py-2.5 text-[#5c5b57]">{cite.citation}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+
         {/* Sign-off footer */}
-        <div className="border-t border-[#e0dfdb] pt-6 text-[10px] text-[#8a8985] leading-relaxed">
+        <div className="border-t border-[#e0dfdb] pt-6 text-[10px] text-[#8a8985] leading-relaxed print:break-inside-avoid">
           <p>
             <strong>Disclaimer:</strong> This automated memo assists internal review by highlighting common legal patterns and risk metrics. It does not replace independent legal advice. The user accepts full responsibility for decisions made based on this output.
           </p>
