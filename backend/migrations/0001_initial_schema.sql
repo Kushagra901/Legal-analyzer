@@ -29,7 +29,10 @@ CREATE TABLE IF NOT EXISTS public.documents (
     user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     filename VARCHAR(255) NOT NULL,
     status VARCHAR(50) NOT NULL DEFAULT 'pending',
-    uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+    uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    summary TEXT,
+    safety_score INTEGER,
+    risk_level VARCHAR(50)
 );
 
 -- 4. Extracted Text table
@@ -135,3 +138,8 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.reports TO anon, authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.notifications TO anon, authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.audit_logs TO anon, authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.automation_runs TO anon, authenticated;
+
+-- Ensure document table has summary, safety_score, risk_level if it was already created
+ALTER TABLE public.documents ADD COLUMN IF NOT EXISTS summary TEXT;
+ALTER TABLE public.documents ADD COLUMN IF NOT EXISTS safety_score INTEGER;
+ALTER TABLE public.documents ADD COLUMN IF NOT EXISTS risk_level VARCHAR(50);

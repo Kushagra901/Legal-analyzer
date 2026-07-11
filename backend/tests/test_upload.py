@@ -7,6 +7,7 @@ import io
 import os
 import sys
 import uuid
+import json
 import pytest
 from unittest.mock import patch
 from fastapi.testclient import TestClient
@@ -19,7 +20,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.main import app
 from app.core.database import Base, get_db
-from app.models import Document, AuditLog
+from app.models import Document, AuditLog, Clause, RiskFlag, ComplianceCheck, LegalReference
 
 # 1. Setup in-memory SQLite database for testing
 engine = create_engine(
@@ -60,8 +61,9 @@ def test_upload_valid_pdf():
     file_content = b"%PDF-1.4 mock PDF content"
     file_name = "test_contract.pdf"
     
-    # Mock storage service to bypass Supabase network calls
-    with patch("app.services.storage_service.StorageService.upload_file", return_value="documents/mock-uuid/test_contract.pdf") as mock_upload:
+    # Mock storage service and OCR text extraction to bypass Supabase and PyMuPDF calls
+    with patch("app.services.storage_service.StorageService.upload_file", return_value="documents/mock-uuid/test_contract.pdf") as mock_upload, \
+         patch("app.services.ocr_service.OCRService.process_document", return_value=("This Mutual Non-Disclosure Agreement is governed by the laws of Delaware. Limitation of liability: neither party is liable for indirect damages. Either party may terminate with notice. Recipient will keep information confidential. Indemnity clause is included.", "native")) as mock_ocr:
         response = client.post(
             "/api/v1/documents",
             files={"file": (file_name, io.BytesIO(file_content), "application/pdf")}
@@ -71,21 +73,35 @@ def test_upload_valid_pdf():
         assert response.status_code == 200
         data = response.json()
         assert data["filename"] == file_name
-        assert data["status"] == "processing"
+        assert data["status"] == "completed"
         assert "document_id" in data
         assert "storage_path" in data
         mock_upload.assert_called_once()
+        mock_ocr.assert_called_once()
 
         # Verify DB entry
         db = TestingSessionLocal()
         doc = db.query(Document).filter(Document.filename == file_name).first()
         assert doc is not None
-        assert doc.status == "processing"
+        assert doc.status == "completed"
+        assert doc.summary is not None
+        assert doc.safety_score is not None
+        assert doc.risk_level is not None
+
+        # Verify Analysis Details DB entry
+        clauses = db.query(Clause).filter(Clause.document_id == doc.id).all()
+        assert len(clauses) > 0
+
+        compliance = db.query(ComplianceCheck).filter(ComplianceCheck.document_id == doc.id).first()
+        assert compliance is not None
+
+        references = db.query(LegalReference).filter(LegalReference.document_id == doc.id).all()
+        assert len(references) > 0
         
         # Verify Audit Log entry
         audit = db.query(AuditLog).filter(AuditLog.document_id == doc.id).first()
         assert audit is not None
-        assert "Document uploaded" in audit.action
+        assert "Document uploaded and analyzed" in audit.action
         db.close()
 
 def test_upload_invalid_file_type():
@@ -170,5 +186,132 @@ def test_ocr_service_decision():
     assert service.should_use_ocr("a" * 150) is True
     # 250 characters (legitimate text) should NOT use OCR
     assert service.should_use_ocr("a" * 250) is False
+
+
+def test_get_document():
+    """
+    Test retrieving document details and dynamic analysis from database.
+    """
+    from app.models import ExtractedText
+    db = TestingSessionLocal()
+    user_id = uuid.UUID("00000000-0000-0000-0000-000000000000")
+    
+    # Create Document
+    doc = Document(
+        id=uuid.uuid4(),
+        filename="governing_law_test.pdf",
+        user_id=user_id,
+        status="completed",
+        summary="A test contract summary.",
+        safety_score=85,
+        risk_level="LOW"
+    )
+    db.add(doc)
+    db.flush()
+
+    # Create ExtractedText
+    extracted = ExtractedText(
+        id=uuid.uuid4(),
+        document_id=doc.id,
+        content="This Agreement is governed by the laws of California.",
+        method="native"
+    )
+    db.add(extracted)
+
+    # Create Clause
+    clause = Clause(
+        id=uuid.uuid4(),
+        document_id=doc.id,
+        clause_type="Governing Law & Jurisdiction",
+        clause_text="This Agreement is governed by the laws of California."
+    )
+    db.add(clause)
+    db.flush()
+
+    # Create RiskFlag
+    flag = RiskFlag(
+        id=uuid.uuid4(),
+        clause_id=clause.id,
+        severity="LOW",
+        explanation="Standard governing law."
+    )
+    db.add(flag)
+
+    # Create ComplianceCheck
+    compliance = ComplianceCheck(
+        id=uuid.uuid4(),
+        document_id=doc.id,
+        rule_set="standard_nda",
+        result=json.dumps([])
+    )
+    db.add(compliance)
+
+    # Create LegalReference
+    ref = LegalReference(
+        id=uuid.uuid4(),
+        document_id=doc.id,
+        source="California Civil Code Section 1646",
+        citation="Governs law selection."
+    )
+    db.add(ref)
+    doc_id = str(doc.id)
+    db.commit()
+    db.close()
+
+    # Fetch document details
+    response = client.get(f"/api/v1/documents/{doc_id}")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["document_id"] == doc_id
+    assert data["filename"] == "governing_law_test.pdf"
+    assert data["status"] == "completed"
+    assert data["analysis"]["safety_score"] == 85
+    assert len(data["analysis"]["clauses"]) == 1
+    assert data["analysis"]["clauses"][0]["type"] == "Governing Law & Jurisdiction"
+    assert len(data["analysis"]["citations"]) == 1
+    assert data["analysis"]["citations"][0]["source"] == "California Civil Code Section 1646"
+
+
+def test_get_report():
+    """
+    Test retrieving a report.
+    """
+    db = TestingSessionLocal()
+    user_id = uuid.UUID("00000000-0000-0000-0000-000000000000")
+    
+    # Create Document
+    doc = Document(
+        id=uuid.uuid4(),
+        filename="report_test.pdf",
+        user_id=user_id,
+        status="completed",
+        summary="A test contract summary for report.",
+        safety_score=75,
+        risk_level="MEDIUM"
+    )
+    db.add(doc)
+    db.flush()
+
+    # Create LegalReference
+    ref = LegalReference(
+        id=uuid.uuid4(),
+        document_id=doc.id,
+        source="Delaware General Corporation Law",
+        citation="Section 102."
+    )
+    db.add(ref)
+    doc_id = str(doc.id)
+    db.commit()
+    db.close()
+
+    response = client.get(f"/api/v1/reports/{doc_id}")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["document_id"] == doc_id
+    assert data["safety_score"] == 75
+    assert data["risk_level"] == "MEDIUM"
+    assert len(data["citations"]) == 1
+    assert data["citations"][0]["source"] == "Delaware General Corporation Law"
+
 
 
