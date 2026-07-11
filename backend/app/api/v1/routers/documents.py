@@ -7,10 +7,14 @@ import uuid
 from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import text
+import json
 from app.core.database import get_db
-from app.models import Document, AuditLog
+from app.models import Document, AuditLog, ExtractedText, Clause, RiskFlag, ComplianceCheck, LegalReference
 from app.services.storage_service import StorageService
 from app.services.ocr_service import OCRService
+from app.services.llm_service import LLMService
+from app.services.risk_service import RiskService
+from app.services.compliance_service import ComplianceService
 
 router = APIRouter()
 
@@ -135,27 +139,91 @@ async def upload_document(
 
     # 6. Save Extracted Text in public.extracted_text table
     try:
-        db.execute(
-            text("""
-                INSERT INTO public.extracted_text (id, document_id, content, method)
-                VALUES (:id, :document_id, :content, :method)
-            """),
-            {
-                "id": str(uuid.uuid4()),
-                "document_id": db_doc.id,
-                "content": extracted_text,
-                "method": method
-            }
+        db_extracted = ExtractedText(
+            id=uuid.uuid4(),
+            document_id=db_doc.id,
+            content=extracted_text,
+            method=method
         )
+        db.add(db_extracted)
         db.commit()
     except Exception as e:
         db.rollback()
         print(f"Error saving extracted text to database: {e}")
 
-    # 7. Write audit log
+    # 7. Perform Analysis (LLM + Risk + Compliance)
+    try:
+        llm_service = LLMService()
+        risk_service = RiskService()
+        compliance_service = ComplianceService()
+
+        # Run AI analysis
+        analysis = llm_service.analyze_contract(extracted_text)
+        
+        # Calculate scores
+        safety_score = risk_service.score_document_risk(analysis.get("clauses", []))
+        risk_level = risk_service.get_risk_level(safety_score)
+        
+        # Run compliance audit
+        compliance_res = compliance_service.check_compliance(extracted_text, "standard_nda")
+
+        # Save clauses and risk flags
+        for clause_data in analysis.get("clauses", []):
+            db_clause = Clause(
+                id=uuid.uuid4(),
+                document_id=db_doc.id,
+                clause_type=clause_data.get("clause_type"),
+                clause_text=clause_data.get("clause_text"),
+            )
+            db.add(db_clause)
+            db.flush()
+
+            severity = clause_data.get("severity", "LOW")
+            explanation = clause_data.get("explanation", "")
+            if severity in ("MEDIUM", "HIGH") or explanation:
+                db_flag = RiskFlag(
+                    id=uuid.uuid4(),
+                    clause_id=db_clause.id,
+                    severity=severity,
+                    explanation=explanation
+                )
+                db.add(db_flag)
+
+        # Save compliance audit record
+        db_compliance = ComplianceCheck(
+            id=uuid.uuid4(),
+            document_id=db_doc.id,
+            rule_set=compliance_res.get("rule_set", "standard_nda"),
+            result=json.dumps(compliance_res.get("violations", []))
+        )
+        db.add(db_compliance)
+
+        # Save legal references
+        for citation_data in analysis.get("citations", []):
+            db_ref = LegalReference(
+                id=uuid.uuid4(),
+                document_id=db_doc.id,
+                source=citation_data.get("source"),
+                citation=citation_data.get("citation")
+            )
+            db.add(db_ref)
+
+        # Update Document record with summary and score
+        db_doc.summary = analysis.get("summary", "")
+        db_doc.safety_score = safety_score
+        db_doc.risk_level = risk_level
+        db_doc.status = "completed"
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"Error performing analysis or saving results: {e}")
+        db_doc.status = "failed"
+        db.commit()
+
+    # 8. Write audit log
     audit_log = AuditLog(
         document_id=db_doc.id,
-        action=f"Document uploaded: {file.filename} (Size: {file_size} bytes, Extracted: {len(extracted_text)} chars, Method: {method})"
+        action=f"Document uploaded and analyzed: {file.filename} (Size: {file_size} bytes, Safety Score: {db_doc.safety_score}, Risk Level: {db_doc.risk_level}, Status: {db_doc.status})"
     )
     db.add(audit_log)
     db.commit()
@@ -209,84 +277,86 @@ def get_document(
             detail="Document not found."
         )
 
-    # Automatically complete processing for mock/demo purposes
-    if doc.status == "processing":
-        doc.status = "completed"
-        db.commit()
-        db.refresh(doc)
-
-    # Try to load real extracted text from database
+    # Write audit log
     try:
-        extracted_record = db.execute(
-            text("SELECT content, method FROM public.extracted_text WHERE document_id = :doc_id"),
-            {"doc_id": doc.id}
-        ).first()
-    except Exception as e:
-        extracted_record = None
-        print(f"Error querying extracted text: {e}")
-    
-    if extracted_record and extracted_record[0]:
-        original_text = extracted_record[0]
-        extraction_method = extracted_record[1]
-    else:
-        original_text = (
-            "MUTUAL NON-DISCLOSURE AGREEMENT\n\n"
-            "This Mutual Non-Disclosure Agreement (the \"Agreement\") is entered into by and between the parties to explore a potential business relationship of mutual interest.\n\n"
-            "1. Purpose. The parties wish to explore a potential business relationship of mutual interest...\n\n"
-            "2. Confidential Information. \"Confidential Information\" means any information or materials disclosed by one party to the other party that is marked as confidential or should reasonably be understood to be confidential.\n\n"
-            "3. Confidentiality Obligations. The Receiving Party agrees: (a) to hold the Disclosing Party's Confidential Information in strict confidence and to take reasonable precautions to protect such Confidential Information.\n\n"
-            "4. Limitation of Liability. NEITHER PARTY SHALL BE LIABLE TO THE OTHER FOR ANY INDIRECT, INCIDENTAL, SPECIAL, OR CONSEQUENTIAL DAMAGES, ARISING OUT OF OR IN CONNECTION WITH THIS AGREEMENT.\n\n"
-            "5. Governing Law & Jurisdiction. This Agreement shall be governed by and construed in accordance with the laws of the State of Delaware, without regard to conflict of law principles."
+        audit_log = AuditLog(
+            document_id=doc.id,
+            action=f"Document viewed: {doc.filename}"
         )
-        extraction_method = "mock"
+        db.add(audit_log)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"Error writing view audit log: {e}")
+
+    # Load real extracted text from database
+    extracted_text_obj = db.query(ExtractedText).filter(ExtractedText.document_id == doc.id).first()
+    original_text = extracted_text_obj.content if extracted_text_obj else ""
+
+    # Load Clauses
+    clauses_db = db.query(Clause).filter(Clause.document_id == doc.id).all()
+    clauses = []
+    recommendations = []
+    
+    for c_db in clauses_db:
+        # Load risk flags linked to this clause
+        flags = db.query(RiskFlag).filter(RiskFlag.clause_id == c_db.id).all()
+        severity = "LOW"
+        explanation = ""
+        if flags:
+            severity = flags[0].severity
+            explanation = flags[0].explanation
+            if severity in ("MEDIUM", "HIGH"):
+                recommendations.append(f"Review the {c_db.clause_type} clause: {explanation}")
+        
+        clauses.append({
+            "id": str(c_db.id),
+            "type": c_db.clause_type,
+            "text": c_db.clause_text,
+            "explanation": explanation or f"Standard {c_db.clause_type} clause.",
+            "severity": severity
+        })
+
+    # Load citations
+    citations_db = db.query(LegalReference).filter(LegalReference.document_id == doc.id).all()
+    citations = [
+        {
+            "source": cit.source,
+            "citation": cit.citation
+        }
+        for cit in citations_db
+    ]
+
+    # Load compliance violations
+    violations = []
+    compliance_db = db.query(ComplianceCheck).filter(ComplianceCheck.document_id == doc.id).first()
+    if compliance_db:
+        try:
+            violations = json.loads(compliance_db.result)
+        except Exception:
+            violations = []
+
+    for v in violations:
+        recommendations.append(v)
+
+    if not recommendations:
+        recommendations.append("Confirm all provisions align with standard organizational templates and practices.")
+        recommendations.append("Ensure the designated governing jurisdiction is acceptable for your operations before formal execution.")
 
     return {
         "document_id": str(doc.id),
         "filename": doc.filename,
         "status": doc.status,
-        "uploaded_at": doc.uploaded_at.isoformat(),
+        "uploaded_at": doc.uploaded_at.isoformat() if doc.uploaded_at else None,
         "original_text": original_text,
         "analysis": {
-            "safety_score": 92,
-            "risk_level": "LOW",
-            "summary": "Standard mutual agreement. All obligations of confidentiality are reciprocal and conform to general commercial standards. Minimal legal exposure detected.",
-            "clauses": [
-                {
-                    "id": "clause_1",
-                    "type": "Confidentiality Obligations",
-                    "text": "The Receiving Party agrees: (a) to hold the Disclosing Party's Confidential Information in strict confidence and to take reasonable precautions to protect such Confidential Information.",
-                    "explanation": "Confidentiality obligations are reciprocal and standard. Both parties are equally bound.",
-                    "severity": "LOW"
-                },
-                {
-                    "id": "clause_2",
-                    "type": "Limitation of Liability",
-                    "text": "NEITHER PARTY SHALL BE LIABLE TO THE OTHER FOR ANY INDIRECT, INCIDENTAL, SPECIAL, OR CONSEQUENTIAL DAMAGES, ARISING OUT OF OR IN CONNECTION WITH THIS AGREEMENT.",
-                    "explanation": "Reciprocal waiver of consequential damages. Standard risk mitigation.",
-                    "severity": "LOW"
-                },
-                {
-                    "id": "clause_3",
-                    "type": "Governing Law & Jurisdiction",
-                    "text": "This Agreement shall be governed by and construed in accordance with the laws of the State of Delaware, without regard to conflict of law principles.",
-                    "explanation": "Delaware is a standard neutral jurisdiction for commercial agreements.",
-                    "severity": "LOW"
-                }
-            ],
-            "citations": [
-                {
-                    "source": "Del. Code Ann. tit. 6, § 2707",
-                    "citation": "Governs enforceability of choice of law provisions in commercial contracts."
-                },
-                {
-                    "source": "Restatement (Second) of Contracts § 187",
-                    "citation": "Law of the state chosen by the parties to govern their contractual rights and duties will be applied."
-                }
-            ],
-            "recommendations": [
-                "Ensure Wilmington, Delaware is an acceptable jurisdiction for your operations before formal execution.",
-                "No amendments are strictly necessary, as standard mutual clauses protect both parties adequately."
-            ]
+            "safety_score": doc.safety_score if doc.safety_score is not None else 100,
+            "risk_level": doc.risk_level if doc.risk_level is not None else "LOW",
+            "summary": doc.summary or "Analysis complete.",
+            "clauses": clauses,
+            "citations": citations,
+            "recommendations": recommendations,
+            "compliance_violations": violations
         }
     }
 

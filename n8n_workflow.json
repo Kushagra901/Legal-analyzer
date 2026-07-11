@@ -1,0 +1,309 @@
+{
+  "name": "Legal Analyzer Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "document-uploaded",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ],
+      "id": "webhook-trigger",
+      "name": "Webhook (Document Uploaded)"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $json.body.document_id }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        450,
+        300
+      ],
+      "id": "get-document-data",
+      "name": "HTTP Request (Get Doc Info)"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [],
+          "number": [
+            {
+              "value1": "={{ $json.original_text.length }}",
+              "operation": "larger",
+              "value2": 200
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        650,
+        300
+      ],
+      "id": "check-native-text",
+      "name": "IF (Native Text Sufficient?)"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $node[\"Webhook (Document Uploaded)\"].json.body.document_id }}/ocr",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        850,
+        450
+      ],
+      "id": "run-ocr-fallback",
+      "name": "HTTP Request (Run OCR Fallback)"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $node[\"Webhook (Document Uploaded)\"].json.body.document_id }}/analyze",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1100,
+        300
+      ],
+      "id": "run-llm-analysis",
+      "name": "HTTP Request (LLM Clause Analysis)"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $node[\"Webhook (Document Uploaded)\"].json.body.document_id }}/score",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1300,
+        300
+      ],
+      "id": "run-risk-scoring",
+      "name": "HTTP Request (Calculate Risk Score)"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $node[\"Webhook (Document Uploaded)\"].json.body.document_id }}/compliance",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1500,
+        300
+      ],
+      "id": "run-compliance-checks",
+      "name": "HTTP Request (Check Compliance)"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $node[\"Webhook (Document Uploaded)\"].json.body.document_id }}/report",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1700,
+        300
+      ],
+      "id": "generate-report",
+      "name": "HTTP Request (Generate Report)"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $node[\"Webhook (Document Uploaded)\"].json.body.document_id }}/audit",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1900,
+        300
+      ],
+      "id": "update-audit-log",
+      "name": "HTTP Request (Update Audit Log)"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.resend.com/emails",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headersUi": {
+          "parameter": [
+            {
+              "name": "Authorization",
+              "value": "Bearer re_placeholder_key"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "bodyParametersUi": {
+          "parameter": [
+            {
+              "name": "from",
+              "value": "Legal Analyzer <notifications@yourdomain.com>"
+            },
+            {
+              "name": "to",
+              "value": "user@example.com"
+            },
+            {
+              "name": "subject",
+              "value": "=Document Analysis Complete: {{ $node[\"Webhook (Document Uploaded)\"].json.body.filename }}"
+            },
+            {
+              "name": "html",
+              "value": "=Your contract analysis for <strong>{{ $node[\"Webhook (Document Uploaded)\"].json.body.filename }}</strong> is ready.<br/>Safety Score: {{ $node[\"HTTP Request (Calculate Risk Score)\"].json.safety_score }}<br/><a href=\"http://localhost:3000/dashboard/documents/{{ $node[\"Webhook (Document Uploaded)\"].json.body.document_id }}\">View Analysis Dashboard</a>"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2100,
+        300
+      ],
+      "id": "notify-user-email",
+      "name": "HTTP Request (Send Email)"
+    }
+  ],
+  "connections": {
+    "Webhook (Document Uploaded)": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request (Get Doc Info)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request (Get Doc Info)": {
+      "main": [
+        [
+          {
+            "node": "IF (Native Text Sufficient?)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF (Native Text Sufficient?)": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request (LLM Clause Analysis)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request (Run OCR Fallback)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request (Run OCR Fallback)": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request (LLM Clause Analysis)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request (LLM Clause Analysis)": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request (Calculate Risk Score)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request (Calculate Risk Score)": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request (Check Compliance)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request (Check Compliance)": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request (Generate Report)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request (Generate Report)": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request (Update Audit Log)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request (Update Audit Log)": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request (Send Email)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
