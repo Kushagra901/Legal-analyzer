@@ -19,14 +19,68 @@
     },
     {
       "parameters": {
+        "operation": "executeQuery",
+        "query": "=SELECT status FROM public.automation_runs WHERE document_id = '{{ $json.body.document_id }}' AND workflow_name = 'Legal Analyzer Pipeline';"
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        400,
+        300
+      ],
+      "id": "check-idempotency",
+      "name": "Postgres (Check Idempotency)"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.status }}",
+              "operation": "equal",
+              "value2": "completed"
+            },
+            {
+              "value1": "={{ $json.status }}",
+              "operation": "equal",
+              "value2": "running"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        550,
+        300
+      ],
+      "id": "check-already-running",
+      "name": "IF (Already Running?)"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=INSERT INTO public.automation_runs (document_id, workflow_name, status) VALUES ('{{ $node[\"Webhook (Document Uploaded)\"].json.body.document_id }}', 'Legal Analyzer Pipeline', 'running') ON CONFLICT (document_id, workflow_name) DO UPDATE SET status = 'running';"
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        700,
+        180
+      ],
+      "id": "mark-as-running",
+      "name": "Postgres (Mark as Running)"
+    },
+    {
+      "parameters": {
         "method": "GET",
-        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $json.body.document_id }}",
+        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $node[\"Webhook (Document Uploaded)\"].json.body.document_id }}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
-        450,
+        900,
         300
       ],
       "id": "get-document-data",
@@ -48,7 +102,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
       "position": [
-        650,
+        1050,
         300
       ],
       "id": "check-native-text",
@@ -63,8 +117,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
-        850,
-        450
+        1200,
+        420
       ],
       "id": "run-ocr-fallback",
       "name": "HTTP Request (Run OCR Fallback)"
@@ -78,7 +132,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
-        1100,
+        1400,
         300
       ],
       "id": "run-llm-analysis",
@@ -93,7 +147,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
-        1300,
+        1600,
         300
       ],
       "id": "run-risk-scoring",
@@ -108,7 +162,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
-        1500,
+        1800,
         300
       ],
       "id": "run-compliance-checks",
@@ -123,7 +177,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
-        1700,
+        2000,
         300
       ],
       "id": "generate-report",
@@ -138,11 +192,61 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
-        1900,
+        2200,
         300
       ],
       "id": "update-audit-log",
       "name": "HTTP Request (Update Audit Log)"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $node[\"HTTP Request (Calculate Risk Score)\"].json.safety_score }}",
+              "operation": "smaller",
+              "value2": 50
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        2400,
+        300
+      ],
+      "id": "check-high-risk",
+      "name": "IF (High Risk?)"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $node[\"Webhook (Document Uploaded)\"].json.body.document_id }}/escalate",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2550,
+        180
+      ],
+      "id": "create-reviewer-task",
+      "name": "HTTP Request (Create Reviewer Task)"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=UPDATE public.automation_runs SET status = 'completed' WHERE document_id = '{{ $node[\"Webhook (Document Uploaded)\"].json.body.document_id }}' AND workflow_name = 'Legal Analyzer Pipeline';"
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        2700,
+        300
+      ],
+      "id": "mark-run-completed",
+      "name": "Postgres (Mark Run Completed)"
     },
     {
       "parameters": {
@@ -188,15 +292,169 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
-        2100,
+        2900,
         300
       ],
       "id": "notify-user-email",
       "name": "HTTP Request (Send Email)"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        250,
+        600
+      ],
+      "id": "error-trigger",
+      "name": "Error Trigger"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $node[\"Webhook (Document Uploaded)\"].json.body.document_id }}/audit",
+        "bodyParametersUi": {
+          "parameter": [
+            {
+              "name": "action",
+              "value": "=Workflow error in node '{{ $json.node.name }}': {{ $json.error.message }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        400,
+        600
+      ],
+      "id": "log-failure",
+      "name": "HTTP Request (Log Failure)"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=UPDATE public.automation_runs SET retry_count = retry_count + 1, status = 'failed_retry' WHERE document_id = '{{ $node[\"Webhook (Document Uploaded)\"].json.body.document_id }}' AND workflow_name = 'Legal Analyzer Pipeline' RETURNING retry_count;"
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        550,
+        600
+      ],
+      "id": "increment-retry",
+      "name": "Postgres (Increment Retry)"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $node[\"Postgres (Increment Retry)\"].json.retry_count }}",
+              "operation": "largerEqual",
+              "value2": 3
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        700,
+        600
+      ],
+      "id": "check-retry-limit",
+      "name": "IF (Retry Limit Reached?)"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=UPDATE public.automation_runs SET status = 'failed' WHERE document_id = '{{ $node[\"Webhook (Document Uploaded)\"].json.body.document_id }}' AND workflow_name = 'Legal Analyzer Pipeline';"
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        850,
+        500
+      ],
+      "id": "mark-run-failed",
+      "name": "Postgres (Mark Run Failed)"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $node[\"Webhook (Document Uploaded)\"].json.body.document_id }}/audit",
+        "bodyParametersUi": {
+          "parameter": [
+            {
+              "name": "action",
+              "value": "=Max retries exceeded for document: {{ $node[\"Webhook (Document Uploaded)\"].json.body.filename }}. Status flagged as failed."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1000,
+        500
+      ],
+      "id": "notify-admin",
+      "name": "HTTP Request (Notify Admin)"
+    },
+    {
+      "parameters": {
+        "amount": "={{ [30, 120, 600][($node[\"Postgres (Increment Retry)\"].json.retry_count || 1) - 1] }}",
+        "unit": "seconds"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        850,
+        700
+      ],
+      "id": "wait-backoff",
+      "name": "Wait (Backoff)"
     }
   ],
   "connections": {
     "Webhook (Document Uploaded)": {
+      "main": [
+        [
+          {
+            "node": "Postgres (Check Idempotency)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres (Check Idempotency)": {
+      "main": [
+        [
+          {
+            "node": "IF (Already Running?)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF (Already Running?)": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Postgres (Mark as Running)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres (Mark as Running)": {
       "main": [
         [
           {
@@ -295,7 +553,109 @@
       "main": [
         [
           {
+            "node": "IF (High Risk?)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF (High Risk?)": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request (Create Reviewer Task)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Postgres (Mark Run Completed)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request (Create Reviewer Task)": {
+      "main": [
+        [
+          {
+            "node": "Postgres (Mark Run Completed)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres (Mark Run Completed)": {
+      "main": [
+        [
+          {
             "node": "HTTP Request (Send Email)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request (Log Failure)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request (Log Failure)": {
+      "main": [
+        [
+          {
+            "node": "Postgres (Increment Retry)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres (Increment Retry)": {
+      "main": [
+        [
+          {
+            "node": "IF (Retry Limit Reached?)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF (Retry Limit Reached?)": {
+      "main": [
+        [
+          {
+            "node": "Postgres (Mark Run Failed)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait (Backoff)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres (Mark Run Failed)": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request (Notify Admin)",
             "type": "main",
             "index": 0
           }

@@ -205,5 +205,6 @@ class AutomationRun(Base):
     document_id = Column(GUID, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
     workflow_name: str = Column(String(255), nullable=False)
     status: str = Column(String(100), nullable=False)
+    retry_count: int = Column(Integer, nullable=False, default=0)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
