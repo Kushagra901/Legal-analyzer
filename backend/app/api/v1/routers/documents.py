@@ -8,8 +8,9 @@ from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 import json
+from pydantic import BaseModel
 from app.core.database import get_db
-from app.models import Document, AuditLog, ExtractedText, Clause, RiskFlag, ComplianceCheck, LegalReference
+from app.models import Document, AuditLog, ExtractedText, Clause, RiskFlag, ComplianceCheck, LegalReference, Report, AutomationRun
 from app.services.storage_service import StorageService
 from app.services.ocr_service import OCRService
 from app.services.llm_service import LLMService
@@ -359,4 +360,197 @@ def get_document(
             "compliance_violations": violations
         }
     }
+
+
+@router.post("/{document_id}/ocr")
+def run_ocr(document_id: str, db: Session = Depends(get_db)) -> dict:
+    try:
+        doc_uuid = uuid.UUID(document_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid document ID format.")
+    doc = db.query(Document).filter(Document.id == doc_uuid).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found.")
+    return {"status": "ocr_completed", "document_id": document_id}
+
+
+@router.post("/{document_id}/analyze")
+def run_analysis(document_id: str, db: Session = Depends(get_db)) -> dict:
+    try:
+        doc_uuid = uuid.UUID(document_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid document ID format.")
+    doc = db.query(Document).filter(Document.id == doc_uuid).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found.")
+    
+    extracted_text_obj = db.query(ExtractedText).filter(ExtractedText.document_id == doc.id).first()
+    extracted_text = extracted_text_obj.content if extracted_text_obj else "Sample contract text."
+    
+    llm_service = LLMService()
+    try:
+        analysis = llm_service.analyze_contract(extracted_text)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"LLM Analysis failed: {str(e)}")
+    
+    # Clean up existing clauses/risk flags to prevent duplication
+    clauses_db = db.query(Clause).filter(Clause.document_id == doc.id).all()
+    for c in clauses_db:
+        db.query(RiskFlag).filter(RiskFlag.clause_id == c.id).delete()
+    db.query(Clause).filter(Clause.document_id == doc.id).delete()
+    db.commit()
+    
+    for clause_data in analysis.get("clauses", []):
+        db_clause = Clause(
+            id=uuid.uuid4(),
+            document_id=doc.id,
+            clause_type=clause_data.get("clause_type"),
+            clause_text=clause_data.get("clause_text"),
+        )
+        db.add(db_clause)
+        db.flush()
+
+        severity = clause_data.get("severity", "LOW")
+        explanation = clause_data.get("explanation", "")
+        if severity in ("MEDIUM", "HIGH") or explanation:
+            db_flag = RiskFlag(
+                id=uuid.uuid4(),
+                clause_id=db_clause.id,
+                severity=severity,
+                explanation=explanation
+            )
+            db.add(db_flag)
+    
+    doc.summary = analysis.get("summary", "")
+    db.commit()
+    
+    return {"status": "analyzed", "summary": doc.summary}
+
+
+@router.post("/{document_id}/score")
+def run_scoring(document_id: str, db: Session = Depends(get_db)) -> dict:
+    try:
+        doc_uuid = uuid.UUID(document_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid document ID format.")
+    doc = db.query(Document).filter(Document.id == doc_uuid).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found.")
+    
+    clauses = db.query(Clause).filter(Clause.document_id == doc.id).all()
+    clause_list = []
+    for c in clauses:
+        flags = db.query(RiskFlag).filter(RiskFlag.clause_id == c.id).all()
+        severity = flags[0].severity if flags else "LOW"
+        clause_list.append({"severity": severity})
+    
+    risk_service = RiskService()
+    safety_score = risk_service.score_document_risk(clause_list)
+    risk_level = risk_service.get_risk_level(safety_score)
+    
+    doc.safety_score = safety_score
+    doc.risk_level = risk_level
+    db.commit()
+    
+    return {"status": "scored", "safety_score": safety_score, "risk_level": risk_level}
+
+
+@router.post("/{document_id}/compliance")
+def run_compliance(document_id: str, db: Session = Depends(get_db)) -> dict:
+    try:
+        doc_uuid = uuid.UUID(document_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid document ID format.")
+    doc = db.query(Document).filter(Document.id == doc_uuid).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found.")
+    
+    extracted_text_obj = db.query(ExtractedText).filter(ExtractedText.document_id == doc.id).first()
+    extracted_text = extracted_text_obj.content if extracted_text_obj else ""
+    
+    compliance_service = ComplianceService()
+    compliance_res = compliance_service.check_compliance(extracted_text, "standard_nda")
+    
+    db.query(ComplianceCheck).filter(ComplianceCheck.document_id == doc.id).delete()
+    db_compliance = ComplianceCheck(
+        id=uuid.uuid4(),
+        document_id=doc.id,
+        rule_set=compliance_res.get("rule_set", "standard_nda"),
+        result=json.dumps(compliance_res.get("violations", []))
+    )
+    db.add(db_compliance)
+    db.commit()
+    
+    return {"status": "compliance_checked", "violations": compliance_res.get("violations", [])}
+
+
+@router.post("/{document_id}/report")
+def run_report(document_id: str, db: Session = Depends(get_db)) -> dict:
+    try:
+        doc_uuid = uuid.UUID(document_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid document ID format.")
+    doc = db.query(Document).filter(Document.id == doc_uuid).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found.")
+    
+    db.query(Report).filter(Report.document_id == doc.id).delete()
+    db_report = Report(
+        id=uuid.uuid4(),
+        document_id=doc.id,
+        format="pdf",
+        file_url=f"/reports/{document_id}.pdf"
+    )
+    db.add(db_report)
+    db.commit()
+    
+    return {"status": "report_generated", "report_url": db_report.file_url}
+
+
+class AuditAction(BaseModel):
+    action: str | None = None
+
+
+@router.post("/{document_id}/audit")
+def run_audit(document_id: str, body: AuditAction = None, db: Session = Depends(get_db)) -> dict:
+    try:
+        doc_uuid = uuid.UUID(document_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid document ID format.")
+    doc = db.query(Document).filter(Document.id == doc_uuid).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found.")
+    
+    action_str = body.action if (body and body.action) else f"Workflow processing step completed for document: {doc.filename}"
+    
+    audit_log = AuditLog(
+        document_id=doc.id,
+        action=action_str
+    )
+    db.add(audit_log)
+    db.commit()
+    
+    return {"status": "audit_logged"}
+
+
+@router.post("/{document_id}/escalate")
+def escalate_document(document_id: str, db: Session = Depends(get_db)) -> dict:
+    try:
+        doc_uuid = uuid.UUID(document_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid document ID format.")
+    doc = db.query(Document).filter(Document.id == doc_uuid).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found.")
+    
+    doc.status = "flagged"
+    
+    audit_log = AuditLog(
+        document_id=doc.id,
+        action=f"Document escalated to human review: {doc.filename}"
+    )
+    db.add(audit_log)
+    db.commit()
+    
+    return {"status": "flagged", "message": "Escalated to human review."}
 

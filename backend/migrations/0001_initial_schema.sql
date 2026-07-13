@@ -107,6 +107,7 @@ CREATE TABLE IF NOT EXISTS public.automation_runs (
     document_id UUID NOT NULL REFERENCES public.documents(id) ON DELETE CASCADE,
     workflow_name VARCHAR(255) NOT NULL,
     status VARCHAR(100) NOT NULL,
+    retry_count INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -143,3 +144,6 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.automation_runs TO anon, authenti
 ALTER TABLE public.documents ADD COLUMN IF NOT EXISTS summary TEXT;
 ALTER TABLE public.documents ADD COLUMN IF NOT EXISTS safety_score INTEGER;
 ALTER TABLE public.documents ADD COLUMN IF NOT EXISTS risk_level VARCHAR(50);
+
+-- Ensure automation_runs has retry_count if it was already created
+ALTER TABLE public.automation_runs ADD COLUMN IF NOT EXISTS retry_count INTEGER NOT NULL DEFAULT 0;
