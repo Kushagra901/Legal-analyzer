@@ -4,7 +4,7 @@ Documents Router.
 Exposes endpoints for uploading and retrieving documents.
 """
 import uuid
-from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, status
+from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 import json
@@ -82,8 +82,34 @@ def ensure_test_user_exists(db: Session) -> uuid.UUID:
     
     return test_id
 
+
+async def trigger_n8n_webhook(document_id: str, filename: str) -> None:
+    """
+    Triggers n8n production webhook after successful document upload.
+    Sends POST with document_id and filename.
+    """
+    import httpx
+    from app.core.config import settings
+    try:
+        async with httpx.AsyncClient() as client:
+            payload = {
+                "document_id": document_id,
+                "filename": filename
+            }
+            response = await client.post(
+                settings.N8N_WEBHOOK_URL,
+                json=payload,
+                timeout=5.0
+            )
+            response.raise_for_status()
+            print(f"Successfully triggered n8n webhook for document {document_id}")
+    except Exception as e:
+        print(f"Warning: Failed to trigger n8n webhook for document {document_id}: {e}")
+
+
 @router.post("")
 async def upload_document(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     db: Session = Depends(get_db)
 ) -> dict:
@@ -228,6 +254,9 @@ async def upload_document(
     )
     db.add(audit_log)
     db.commit()
+
+    # 9. Trigger n8n webhook in background
+    background_tasks.add_task(trigger_n8n_webhook, str(db_doc.id), db_doc.filename)
 
     return {
         "document_id": str(db_doc.id),

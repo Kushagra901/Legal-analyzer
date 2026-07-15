@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "placeholder_secret_key_change_me_in_production"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24 hours
+    N8N_WEBHOOK_URL: str = "http://localhost:5678/webhook/document-uploaded"
 
 
 settings = Settings()

@@ -61,9 +61,10 @@ def test_upload_valid_pdf():
     file_content = b"%PDF-1.4 mock PDF content"
     file_name = "test_contract.pdf"
     
-    # Mock storage service and OCR text extraction to bypass Supabase and PyMuPDF calls
+    # Mock storage service, OCR text extraction, and n8n webhook trigger
     with patch("app.services.storage_service.StorageService.upload_file", return_value="documents/mock-uuid/test_contract.pdf") as mock_upload, \
-         patch("app.services.ocr_service.OCRService.process_document", return_value=("This Mutual Non-Disclosure Agreement is governed by the laws of Delaware. Limitation of liability: neither party is liable for indirect damages. Either party may terminate with notice. Recipient will keep information confidential. Indemnity clause is included.", "native")) as mock_ocr:
+         patch("app.services.ocr_service.OCRService.process_document", return_value=("This Mutual Non-Disclosure Agreement is governed by the laws of Delaware. Limitation of liability: neither party is liable for indirect damages. Either party may terminate with notice. Recipient will keep information confidential. Indemnity clause is included.", "native")) as mock_ocr, \
+         patch("app.api.v1.routers.documents.trigger_n8n_webhook") as mock_webhook:
         response = client.post(
             "/api/v1/documents",
             files={"file": (file_name, io.BytesIO(file_content), "application/pdf")}
@@ -78,6 +79,7 @@ def test_upload_valid_pdf():
         assert "storage_path" in data
         mock_upload.assert_called_once()
         mock_ocr.assert_called_once()
+        mock_webhook.assert_called_once_with(data["document_id"], file_name)
 
         # Verify DB entry
         db = TestingSessionLocal()
