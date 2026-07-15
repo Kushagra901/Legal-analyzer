@@ -18,7 +18,7 @@ class LLMService:
 
     def __init__(self) -> None:
         self.api_key = settings.GEMINI_API_KEY
-        self.api_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+        self.api_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent"
 
     def analyze_contract(self, text: str) -> dict:
         """
