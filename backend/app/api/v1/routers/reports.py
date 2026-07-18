@@ -8,14 +8,16 @@ import json
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.models import Document, LegalReference, Clause, RiskFlag, ComplianceCheck, AuditLog
+from app.models import Document, LegalReference, Clause, RiskFlag, ComplianceCheck, AuditLog, User
+from app.core.auth import get_current_user
 
 router = APIRouter()
 
 @router.get("/{document_id}")
 def get_report(
     document_id: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ) -> dict:
     """
     Retrieve generated memorandum audit report by document ID.
@@ -28,7 +30,10 @@ def get_report(
             detail="Invalid document ID format."
         )
 
-    doc = db.query(Document).filter(Document.id == doc_uuid).first()
+    doc = db.query(Document).join(User).filter(
+        Document.id == doc_uuid,
+        User.org_id == current_user.org_id
+    ).first()
     if not doc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

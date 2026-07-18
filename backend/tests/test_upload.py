@@ -12,7 +12,7 @@ import pytest
 from unittest.mock import patch
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
 
 # Add app to path
@@ -20,7 +20,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.main import app
 from app.core.database import Base, get_db
-from app.models import Document, AuditLog, Clause, RiskFlag, ComplianceCheck, LegalReference
+from app.models import Document, AuditLog, Clause, RiskFlag, ComplianceCheck, LegalReference, User, Organization
 
 # 1. Setup in-memory SQLite database for testing
 engine = create_engine(
@@ -33,6 +33,9 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 # Create all tables in the temporary database
 Base.metadata.create_all(bind=engine)
 
+from fastapi import Depends
+from app.core.auth import get_current_user
+
 # 2. Dependency Override
 def override_get_db():
     db = TestingSessionLocal()
@@ -41,7 +44,23 @@ def override_get_db():
     finally:
         db.close()
 
+def override_get_current_user(db: Session = Depends(override_get_db)):
+    test_uuid = uuid.UUID("00000000-0000-0000-0000-000000000000")
+    org = db.query(Organization).filter(Organization.id == test_uuid).first()
+    if not org:
+        org = Organization(id=test_uuid, name="Test Org", plan="free")
+        db.add(org)
+        db.commit()
+    user = db.query(User).filter(User.id == test_uuid).first()
+    if not user:
+        user = User(id=test_uuid, org_id=test_uuid, email="test@example.com", role="user")
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    return user
+
 app.dependency_overrides[get_db] = override_get_db
+app.dependency_overrides[get_current_user] = override_get_current_user
 client = TestClient(app)
 
 @pytest.fixture(autouse=True)
@@ -67,7 +86,8 @@ def test_upload_valid_pdf():
          patch("app.api.v1.routers.documents.trigger_n8n_webhook") as mock_webhook:
         response = client.post(
             "/api/v1/documents",
-            files={"file": (file_name, io.BytesIO(file_content), "application/pdf")}
+            files={"file": (file_name, io.BytesIO(file_content), "application/pdf")},
+            headers={"Authorization": "Bearer test-token"}
         )
         
         # Verify API response
@@ -115,7 +135,8 @@ def test_upload_invalid_file_type():
     
     response = client.post(
         "/api/v1/documents",
-        files={"file": (file_name, io.BytesIO(file_content), "image/png")}
+        files={"file": (file_name, io.BytesIO(file_content), "image/png")},
+        headers={"Authorization": "Bearer test-token"}
     )
     
     # Verify rejection
@@ -138,7 +159,8 @@ def test_upload_oversized_file():
     
     response = client.post(
         "/api/v1/documents",
-        files={"file": (file_name, io.BytesIO(oversized_content), "application/pdf")}
+        files={"file": (file_name, io.BytesIO(oversized_content), "application/pdf")},
+        headers={"Authorization": "Bearer test-token"}
     )
     
     # Verify rejection
@@ -167,7 +189,7 @@ def test_list_documents():
     db.commit()
     db.close()
     
-    response = client.get("/api/v1/documents")
+    response = client.get("/api/v1/documents", headers={"Authorization": "Bearer test-token"})
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 2
@@ -261,7 +283,7 @@ def test_get_document():
     db.close()
 
     # Fetch document details
-    response = client.get(f"/api/v1/documents/{doc_id}")
+    response = client.get(f"/api/v1/documents/{doc_id}", headers={"Authorization": "Bearer test-token"})
     assert response.status_code == 200
     data = response.json()
     assert data["document_id"] == doc_id
@@ -306,7 +328,7 @@ def test_get_report():
     db.commit()
     db.close()
 
-    response = client.get(f"/api/v1/reports/{doc_id}")
+    response = client.get(f"/api/v1/reports/{doc_id}", headers={"Authorization": "Bearer test-token"})
     assert response.status_code == 200
     data = response.json()
     assert data["document_id"] == doc_id

@@ -10,12 +10,13 @@ from sqlalchemy import text
 import json
 from pydantic import BaseModel
 from app.core.database import get_db
-from app.models import Document, AuditLog, ExtractedText, Clause, RiskFlag, ComplianceCheck, LegalReference, Report, AutomationRun
+from app.models import Document, AuditLog, ExtractedText, Clause, RiskFlag, ComplianceCheck, LegalReference, Report, AutomationRun, User
 from app.services.storage_service import StorageService
 from app.services.ocr_service import OCRService
 from app.services.llm_service import LLMService
 from app.services.risk_service import RiskService
 from app.services.compliance_service import ComplianceService
+from app.core.auth import get_current_user
 
 router = APIRouter()
 
@@ -111,7 +112,8 @@ async def trigger_n8n_webhook(document_id: str, filename: str) -> None:
 async def upload_document(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ) -> dict:
     """
     Upload a document, validate it, save it to storage, and return a mock processing status.
@@ -133,7 +135,7 @@ async def upload_document(
         )
 
     # Ensure dummy user exists in database
-    user_id = ensure_test_user_exists(db)
+    user_id = current_user.id
 
     # 3. Upload to Supabase Storage
     storage_service = StorageService()
@@ -268,12 +270,13 @@ async def upload_document(
 
 @router.get("")
 def list_documents(
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ) -> list[dict]:
     """
     Retrieve all uploaded documents.
     """
-    docs = db.query(Document).order_by(Document.uploaded_at.desc()).all()
+    docs = db.query(Document).join(User).filter(User.org_id == current_user.org_id).order_by(Document.uploaded_at.desc()).all()
     return [
         {
             "document_id": str(doc.id),
@@ -287,7 +290,8 @@ def list_documents(
 @router.get("/{document_id}")
 def get_document(
     document_id: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ) -> dict:
     """
     Retrieve details for an analyzed document.
@@ -300,7 +304,10 @@ def get_document(
             detail="Invalid document ID format."
         )
 
-    doc = db.query(Document).filter(Document.id == doc_uuid).first()
+    doc = db.query(Document).join(User).filter(
+        Document.id == doc_uuid,
+        User.org_id == current_user.org_id
+    ).first()
     if not doc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -392,24 +399,38 @@ def get_document(
 
 
 @router.post("/{document_id}/ocr")
-def run_ocr(document_id: str, db: Session = Depends(get_db)) -> dict:
+def run_ocr(
+    document_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+) -> dict:
     try:
         doc_uuid = uuid.UUID(document_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid document ID format.")
-    doc = db.query(Document).filter(Document.id == doc_uuid).first()
+    doc = db.query(Document).join(User).filter(
+        Document.id == doc_uuid,
+        User.org_id == current_user.org_id
+    ).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found.")
     return {"status": "ocr_completed", "document_id": document_id}
 
 
 @router.post("/{document_id}/analyze")
-def run_analysis(document_id: str, db: Session = Depends(get_db)) -> dict:
+def run_analysis(
+    document_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+) -> dict:
     try:
         doc_uuid = uuid.UUID(document_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid document ID format.")
-    doc = db.query(Document).filter(Document.id == doc_uuid).first()
+    doc = db.query(Document).join(User).filter(
+        Document.id == doc_uuid,
+        User.org_id == current_user.org_id
+    ).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found.")
     
@@ -457,12 +478,19 @@ def run_analysis(document_id: str, db: Session = Depends(get_db)) -> dict:
 
 
 @router.post("/{document_id}/score")
-def run_scoring(document_id: str, db: Session = Depends(get_db)) -> dict:
+def run_scoring(
+    document_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+) -> dict:
     try:
         doc_uuid = uuid.UUID(document_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid document ID format.")
-    doc = db.query(Document).filter(Document.id == doc_uuid).first()
+    doc = db.query(Document).join(User).filter(
+        Document.id == doc_uuid,
+        User.org_id == current_user.org_id
+    ).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found.")
     
@@ -485,12 +513,19 @@ def run_scoring(document_id: str, db: Session = Depends(get_db)) -> dict:
 
 
 @router.post("/{document_id}/compliance")
-def run_compliance(document_id: str, db: Session = Depends(get_db)) -> dict:
+def run_compliance(
+    document_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+) -> dict:
     try:
         doc_uuid = uuid.UUID(document_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid document ID format.")
-    doc = db.query(Document).filter(Document.id == doc_uuid).first()
+    doc = db.query(Document).join(User).filter(
+        Document.id == doc_uuid,
+        User.org_id == current_user.org_id
+    ).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found.")
     
@@ -514,12 +549,19 @@ def run_compliance(document_id: str, db: Session = Depends(get_db)) -> dict:
 
 
 @router.post("/{document_id}/report")
-def run_report(document_id: str, db: Session = Depends(get_db)) -> dict:
+def run_report(
+    document_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+) -> dict:
     try:
         doc_uuid = uuid.UUID(document_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid document ID format.")
-    doc = db.query(Document).filter(Document.id == doc_uuid).first()
+    doc = db.query(Document).join(User).filter(
+        Document.id == doc_uuid,
+        User.org_id == current_user.org_id
+    ).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found.")
     
@@ -541,12 +583,20 @@ class AuditAction(BaseModel):
 
 
 @router.post("/{document_id}/audit")
-def run_audit(document_id: str, body: AuditAction = None, db: Session = Depends(get_db)) -> dict:
+def run_audit(
+    document_id: str,
+    body: AuditAction = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+) -> dict:
     try:
         doc_uuid = uuid.UUID(document_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid document ID format.")
-    doc = db.query(Document).filter(Document.id == doc_uuid).first()
+    doc = db.query(Document).join(User).filter(
+        Document.id == doc_uuid,
+        User.org_id == current_user.org_id
+    ).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found.")
     
@@ -563,12 +613,19 @@ def run_audit(document_id: str, body: AuditAction = None, db: Session = Depends(
 
 
 @router.post("/{document_id}/escalate")
-def escalate_document(document_id: str, db: Session = Depends(get_db)) -> dict:
+def escalate_document(
+    document_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+) -> dict:
     try:
         doc_uuid = uuid.UUID(document_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid document ID format.")
-    doc = db.query(Document).filter(Document.id == doc_uuid).first()
+    doc = db.query(Document).join(User).filter(
+        Document.id == doc_uuid,
+        User.org_id == current_user.org_id
+    ).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found.")
     
