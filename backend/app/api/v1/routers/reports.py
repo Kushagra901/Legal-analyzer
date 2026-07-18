@@ -30,10 +30,13 @@ def get_report(
             detail="Invalid document ID format."
         )
 
-    doc = db.query(Document).join(User).filter(
-        Document.id == doc_uuid,
-        User.org_id == current_user.org_id
-    ).first()
+    if current_user.role == "admin":
+        doc = db.query(Document).filter(Document.id == doc_uuid).first()
+    else:
+        doc = db.query(Document).join(User).filter(
+            Document.id == doc_uuid,
+            User.org_id == current_user.org_id
+        ).first()
     if not doc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

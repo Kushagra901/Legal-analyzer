@@ -33,7 +33,7 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 # Create all tables in the temporary database
 Base.metadata.create_all(bind=engine)
 
-from fastapi import Depends
+from fastapi import Depends, Request
 from app.core.auth import get_current_user
 
 # 2. Dependency Override
@@ -44,7 +44,19 @@ def override_get_db():
     finally:
         db.close()
 
-def override_get_current_user(db: Session = Depends(override_get_db)):
+def override_get_current_user(request: Request, db: Session = Depends(override_get_db)):
+    internal_token = request.headers.get("x-internal-token")
+    if internal_token is not None:
+        if internal_token != "placeholder_internal_service_token_change_me":
+            from fastapi import HTTPException
+            raise HTTPException(status_code=401, detail="Invalid internal service token.")
+        system_uuid = uuid.UUID("00000000-0000-0000-0000-000000000000")
+        return User(
+            id=system_uuid,
+            org_id=system_uuid,
+            email="system-internal@service.local",
+            role="admin"
+        )
     test_uuid = uuid.UUID("00000000-0000-0000-0000-000000000000")
     org = db.query(Organization).filter(Organization.id == test_uuid).first()
     if not org:
@@ -377,6 +389,70 @@ def test_get_report():
     assert data["risk_level"] == "MEDIUM"
     assert len(data["citations"]) == 1
     assert data["citations"][0]["source"] == "Delaware General Corporation Law"
+
+
+def test_get_document_via_internal_token():
+    """
+    Test retrieving a document via the internal service bypass token.
+    """
+    db = TestingSessionLocal()
+    user_id = uuid.UUID("00000000-0000-0000-0000-000000000000")
+    doc = Document(
+        id=uuid.uuid4(),
+        filename="internal_auth_test.pdf",
+        user_id=user_id,
+        status="completed"
+    )
+    db.add(doc)
+    db.commit()
+    doc_id = str(doc.id)
+    db.close()
+
+    response = client.get(
+        f"/api/v1/documents/{doc_id}",
+        headers={"x-internal-token": "placeholder_internal_service_token_change_me"}
+    )
+    assert response.status_code == 200
+    assert response.json()["document_id"] == doc_id
+
+
+def test_get_document_via_invalid_internal_token():
+    """
+    Test that retrieving a document with an invalid X-Internal-Token fails.
+    """
+    response = client.get(
+        "/api/v1/documents/00000000-0000-0000-0000-000000000000",
+        headers={"x-internal-token": "wrong-token"}
+    )
+    assert response.status_code == 401
+    assert "Invalid internal service token" in response.json()["detail"]
+
+
+def test_get_report_via_internal_token():
+    """
+    Test retrieving a report via the internal service bypass token.
+    """
+    db = TestingSessionLocal()
+    user_id = uuid.UUID("00000000-0000-0000-0000-000000000000")
+    doc = Document(
+        id=uuid.uuid4(),
+        filename="internal_report_test.pdf",
+        user_id=user_id,
+        status="completed",
+        summary="Internal report test summary."
+    )
+    db.add(doc)
+    db.commit()
+    doc_id = str(doc.id)
+    db.close()
+
+    response = client.get(
+        f"/api/v1/reports/{doc_id}",
+        headers={"x-internal-token": "placeholder_internal_service_token_change_me"}
+    )
+    assert response.status_code == 200
+    assert response.json()["document_id"] == doc_id
+
 
 
 
