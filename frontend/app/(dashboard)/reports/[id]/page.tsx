@@ -12,6 +12,8 @@
 
 import React, { useEffect, useState, use } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 import { apiClient } from "@/lib/api";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 
@@ -39,16 +41,22 @@ export default function ReportDetailPage({ params }: PageProps) {
   const resolvedParams = use(params);
   const docId = resolvedParams.id;
 
+  const router = useRouter();
   const [report, setReport] = useState<ReportData | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchReportData = async () => {
+    const checkSessionAndFetch = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        router.push("/login");
+        return;
+      }
       try {
         setIsLoading(true);
-        const data = await apiClient.fetchReport(docId);
-        setReport(data);
+        const dataReport = await apiClient.fetchReport(docId);
+        setReport(dataReport);
         setError(null);
       } catch (err: any) {
         setError(err.message || "Failed to load legal report.");
@@ -56,8 +64,8 @@ export default function ReportDetailPage({ params }: PageProps) {
         setIsLoading(false);
       }
     };
-    fetchReportData();
-  }, [docId]);
+    checkSessionAndFetch();
+  }, [docId, router]);
 
   const handlePrint = () => {
     window.print();

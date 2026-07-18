@@ -7,6 +7,8 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 import { apiClient } from "@/lib/api";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -20,16 +22,22 @@ interface AuditLogItem {
 }
 
 export default function AdminPage() {
+  const router = useRouter();
   const [logs, setLogs] = useState<AuditLogItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchLogs = async () => {
+    const checkSessionAndFetch = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        router.push("/login");
+        return;
+      }
       try {
         setIsLoading(true);
-        const data = await apiClient.fetchAuditLogs();
-        setLogs(data);
+        const dataLogs = await apiClient.fetchAuditLogs();
+        setLogs(dataLogs);
         setError(null);
       } catch (err: any) {
         setError(err.message || "Failed to load audit logs.");
@@ -37,8 +45,8 @@ export default function AdminPage() {
         setIsLoading(false);
       }
     };
-    fetchLogs();
-  }, []);
+    checkSessionAndFetch();
+  }, [router]);
 
   return (
     <div className="min-h-screen bg-[#faf9f6] text-[#1c1c1c] font-sans">

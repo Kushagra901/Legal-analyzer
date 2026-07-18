@@ -1,15 +1,25 @@
 /**
  * @file index.ts
- * @description API client wrappers and setup placeholders.
+ * @description API client wrappers. Includes Supabase Auth Bearer headers.
  */
+
+import { supabase } from "@/lib/supabase";
+
+async function getAuthHeaders(): Promise<HeadersInit> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 export const apiClient = {
   fetchDocuments: async () => {
-    const res = await fetch("/api/v1/documents");
+    const headers = await getAuthHeaders();
+    const res = await fetch("/api/v1/documents", { headers });
     return res.json();
   },
   fetchDocument: async (id: string) => {
-    const res = await fetch(`/api/v1/documents/${id}`);
+    const headers = await getAuthHeaders();
+    const res = await fetch(`/api/v1/documents/${id}`, { headers });
     if (!res.ok) {
       const errorData = await res.json().catch(() => ({}));
       throw new Error(errorData.detail || "Failed to fetch document details");
@@ -17,7 +27,8 @@ export const apiClient = {
     return res.json();
   },
   fetchReport: async (id: string) => {
-    const res = await fetch(`/api/v1/reports/${id}`);
+    const headers = await getAuthHeaders();
+    const res = await fetch(`/api/v1/reports/${id}`, { headers });
     if (!res.ok) {
       const errorData = await res.json().catch(() => ({}));
       throw new Error(errorData.detail || "Failed to fetch report details");
@@ -25,7 +36,8 @@ export const apiClient = {
     return res.json();
   },
   fetchAuditLogs: async () => {
-    const res = await fetch("/api/v1/admin/audit-logs");
+    const headers = await getAuthHeaders();
+    const res = await fetch("/api/v1/admin/audit-logs", { headers });
     if (!res.ok) {
       const errorData = await res.json().catch(() => ({}));
       throw new Error(errorData.detail || "Failed to fetch audit logs");
@@ -35,9 +47,11 @@ export const apiClient = {
   uploadDocument: async (file: File) => {
     const formData = new FormData();
     formData.append("file", file);
+    const headers = await getAuthHeaders();
     const res = await fetch("/api/v1/documents", {
       method: "POST",
       body: formData,
+      headers,
     });
     if (!res.ok) {
       const errorData = await res.json().catch(() => ({}));
@@ -46,4 +60,3 @@ export const apiClient = {
     return res.json();
   },
 };
-

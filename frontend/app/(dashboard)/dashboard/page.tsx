@@ -7,6 +7,8 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 import { UploadDropzone } from "@/components/documents/upload-dropzone";
 import { apiClient } from "@/lib/api";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
@@ -21,6 +23,7 @@ interface DocumentItem {
 }
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -39,8 +42,16 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
-    loadDocuments();
-  }, []);
+    const checkSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        router.push("/login");
+      } else {
+        loadDocuments();
+      }
+    };
+    checkSession();
+  }, [router]);
 
   const handleUploadSuccess = () => {
     loadDocuments();

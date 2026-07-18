@@ -7,6 +7,8 @@
 
 import React, { useEffect, useState, use } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 import { apiClient } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
@@ -47,6 +49,7 @@ export default function DocumentDetailPage({ params }: PageProps) {
   const resolvedParams = use(params);
   const docId = resolvedParams.id;
 
+  const router = useRouter();
   const [doc, setDoc] = useState<DocumentData | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -54,11 +57,16 @@ export default function DocumentDetailPage({ params }: PageProps) {
   const [selectedClauseText, setSelectedClauseText] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchDoc = async () => {
+    const checkSessionAndFetch = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        router.push("/login");
+        return;
+      }
       try {
         setIsLoading(true);
-        const data = await apiClient.fetchDocument(docId);
-        setDoc(data);
+        const dataDoc = await apiClient.fetchDocument(docId);
+        setDoc(dataDoc);
         setError(null);
       } catch (err: any) {
         setError(err.message || "Failed to load document analysis details.");
@@ -66,8 +74,8 @@ export default function DocumentDetailPage({ params }: PageProps) {
         setIsLoading(false);
       }
     };
-    fetchDoc();
-  }, [docId]);
+    checkSessionAndFetch();
+  }, [docId, router]);
 
   useEffect(() => {
     if (selectedClauseText) {

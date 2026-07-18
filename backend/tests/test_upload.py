@@ -12,7 +12,7 @@ import pytest
 from unittest.mock import patch
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
 
 # Add app to path
@@ -20,7 +20,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.main import app
 from app.core.database import Base, get_db
-from app.models import Document, AuditLog, Clause, RiskFlag, ComplianceCheck, LegalReference
+from app.models import Document, AuditLog, Clause, RiskFlag, ComplianceCheck, LegalReference, User, Organization
 
 # 1. Setup in-memory SQLite database for testing
 engine = create_engine(
@@ -33,6 +33,9 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 # Create all tables in the temporary database
 Base.metadata.create_all(bind=engine)
 
+from fastapi import Depends, Request
+from app.core.auth import get_current_user
+
 # 2. Dependency Override
 def override_get_db():
     db = TestingSessionLocal()
@@ -41,7 +44,35 @@ def override_get_db():
     finally:
         db.close()
 
+def override_get_current_user(request: Request, db: Session = Depends(override_get_db)):
+    internal_token = request.headers.get("x-internal-token")
+    if internal_token is not None:
+        if internal_token != "placeholder_internal_service_token_change_me":
+            from fastapi import HTTPException
+            raise HTTPException(status_code=401, detail="Invalid internal service token.")
+        system_uuid = uuid.UUID("00000000-0000-0000-0000-000000000000")
+        return User(
+            id=system_uuid,
+            org_id=system_uuid,
+            email="system-internal@service.local",
+            role="admin"
+        )
+    test_uuid = uuid.UUID("00000000-0000-0000-0000-000000000000")
+    org = db.query(Organization).filter(Organization.id == test_uuid).first()
+    if not org:
+        org = Organization(id=test_uuid, name="Test Org", plan="free")
+        db.add(org)
+        db.commit()
+    user = db.query(User).filter(User.id == test_uuid).first()
+    if not user:
+        user = User(id=test_uuid, org_id=test_uuid, email="test@example.com", role="user")
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    return user
+
 app.dependency_overrides[get_db] = override_get_db
+app.dependency_overrides[get_current_user] = override_get_current_user
 client = TestClient(app)
 
 @pytest.fixture(autouse=True)
@@ -63,11 +94,12 @@ def test_upload_valid_pdf():
     
     # Mock storage service, OCR text extraction, and n8n webhook trigger
     with patch("app.services.storage_service.StorageService.upload_file", return_value="documents/mock-uuid/test_contract.pdf") as mock_upload, \
-         patch("app.services.ocr_service.OCRService.process_document", return_value=("This Mutual Non-Disclosure Agreement is governed by the laws of Delaware. Limitation of liability: neither party is liable for indirect damages. Either party may terminate with notice. Recipient will keep information confidential. Indemnity clause is included.", "native")) as mock_ocr, \
+         patch("app.services.ocr_service.OCRService.process_document", return_value=("This Mutual Non-Disclosure Agreement is governed by the laws of Delaware. Limitation of liability: neither party is liable for indirect damages. Either party may terminate with notice. Recipient will keep information confidential. Indemnity clause is included.", "native", 1.0)) as mock_ocr, \
          patch("app.api.v1.routers.documents.trigger_n8n_webhook") as mock_webhook:
         response = client.post(
             "/api/v1/documents",
-            files={"file": (file_name, io.BytesIO(file_content), "application/pdf")}
+            files={"file": (file_name, io.BytesIO(file_content), "application/pdf")},
+            headers={"Authorization": "Bearer test-token"}
         )
         
         # Verify API response
@@ -106,16 +138,58 @@ def test_upload_valid_pdf():
         assert "Document uploaded and analyzed" in audit.action
         db.close()
 
+def test_upload_valid_docx():
+    """
+    Test uploading a valid DOCX document.
+    """
+    from app.models import ExtractedText
+    file_content = b"mock DOCX file content"
+    file_name = "test_contract.docx"
+    
+    # Mock storage, OCR (returning DOCX parsed equivalent), and n8n webhook
+    with patch("app.services.storage_service.StorageService.upload_file", return_value="documents/mock-uuid/test_contract.docx") as mock_upload, \
+         patch("app.services.ocr_service.OCRService.process_document", return_value=("This Mutual Non-Disclosure Agreement is governed by the laws of Delaware. Limitation of liability: neither party is liable for indirect damages. Either party may terminate with notice. Recipient will keep information confidential.", "native", 1.0)) as mock_ocr, \
+         patch("app.api.v1.routers.documents.trigger_n8n_webhook") as mock_webhook:
+        response = client.post(
+            "/api/v1/documents",
+            files={"file": (file_name, io.BytesIO(file_content), "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
+            headers={"Authorization": "Bearer test-token"}
+        )
+        
+        # Verify API response
+        assert response.status_code == 200
+        data = response.json()
+        assert data["filename"] == file_name
+        assert data["status"] == "completed"
+        assert "document_id" in data
+        assert "storage_path" in data
+        mock_upload.assert_called_once()
+        mock_ocr.assert_called_once()
+        mock_webhook.assert_called_once_with(data["document_id"], file_name)
+
+        # Verify DB entry
+        db = TestingSessionLocal()
+        doc = db.query(Document).filter(Document.filename == file_name).first()
+        assert doc is not None
+        assert doc.status == "completed"
+
+        # Verify ExtractedText entry has parsing_confidence
+        extracted = db.query(ExtractedText).filter(ExtractedText.document_id == doc.id).first()
+        assert extracted is not None
+        assert extracted.parsing_confidence == 1.0
+        db.close()
+
 def test_upload_invalid_file_type():
     """
-    Test that uploading an unsupported file format (e.g. PNG) is rejected.
+    Test that uploading an unsupported file format (e.g. GIF) is rejected.
     """
-    file_content = b"\x89PNG\r\n\x1a\n mock PNG content"
-    file_name = "image.png"
+    file_content = b"GIF89a mock GIF content"
+    file_name = "image.gif"
     
     response = client.post(
         "/api/v1/documents",
-        files={"file": (file_name, io.BytesIO(file_content), "image/png")}
+        files={"file": (file_name, io.BytesIO(file_content), "image/gif")},
+        headers={"Authorization": "Bearer test-token"}
     )
     
     # Verify rejection
@@ -138,7 +212,8 @@ def test_upload_oversized_file():
     
     response = client.post(
         "/api/v1/documents",
-        files={"file": (file_name, io.BytesIO(oversized_content), "application/pdf")}
+        files={"file": (file_name, io.BytesIO(oversized_content), "application/pdf")},
+        headers={"Authorization": "Bearer test-token"}
     )
     
     # Verify rejection
@@ -167,7 +242,7 @@ def test_list_documents():
     db.commit()
     db.close()
     
-    response = client.get("/api/v1/documents")
+    response = client.get("/api/v1/documents", headers={"Authorization": "Bearer test-token"})
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 2
@@ -261,7 +336,7 @@ def test_get_document():
     db.close()
 
     # Fetch document details
-    response = client.get(f"/api/v1/documents/{doc_id}")
+    response = client.get(f"/api/v1/documents/{doc_id}", headers={"Authorization": "Bearer test-token"})
     assert response.status_code == 200
     data = response.json()
     assert data["document_id"] == doc_id
@@ -306,7 +381,7 @@ def test_get_report():
     db.commit()
     db.close()
 
-    response = client.get(f"/api/v1/reports/{doc_id}")
+    response = client.get(f"/api/v1/reports/{doc_id}", headers={"Authorization": "Bearer test-token"})
     assert response.status_code == 200
     data = response.json()
     assert data["document_id"] == doc_id
@@ -314,6 +389,70 @@ def test_get_report():
     assert data["risk_level"] == "MEDIUM"
     assert len(data["citations"]) == 1
     assert data["citations"][0]["source"] == "Delaware General Corporation Law"
+
+
+def test_get_document_via_internal_token():
+    """
+    Test retrieving a document via the internal service bypass token.
+    """
+    db = TestingSessionLocal()
+    user_id = uuid.UUID("00000000-0000-0000-0000-000000000000")
+    doc = Document(
+        id=uuid.uuid4(),
+        filename="internal_auth_test.pdf",
+        user_id=user_id,
+        status="completed"
+    )
+    db.add(doc)
+    db.commit()
+    doc_id = str(doc.id)
+    db.close()
+
+    response = client.get(
+        f"/api/v1/documents/{doc_id}",
+        headers={"x-internal-token": "placeholder_internal_service_token_change_me"}
+    )
+    assert response.status_code == 200
+    assert response.json()["document_id"] == doc_id
+
+
+def test_get_document_via_invalid_internal_token():
+    """
+    Test that retrieving a document with an invalid X-Internal-Token fails.
+    """
+    response = client.get(
+        "/api/v1/documents/00000000-0000-0000-0000-000000000000",
+        headers={"x-internal-token": "wrong-token"}
+    )
+    assert response.status_code == 401
+    assert "Invalid internal service token" in response.json()["detail"]
+
+
+def test_get_report_via_internal_token():
+    """
+    Test retrieving a report via the internal service bypass token.
+    """
+    db = TestingSessionLocal()
+    user_id = uuid.UUID("00000000-0000-0000-0000-000000000000")
+    doc = Document(
+        id=uuid.uuid4(),
+        filename="internal_report_test.pdf",
+        user_id=user_id,
+        status="completed",
+        summary="Internal report test summary."
+    )
+    db.add(doc)
+    db.commit()
+    doc_id = str(doc.id)
+    db.close()
+
+    response = client.get(
+        f"/api/v1/reports/{doc_id}",
+        headers={"x-internal-token": "placeholder_internal_service_token_change_me"}
+    )
+    assert response.status_code == 200
+    assert response.json()["document_id"] == doc_id
+
 
 
 

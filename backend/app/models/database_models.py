@@ -4,7 +4,7 @@ Database Models.
 Defines SQLAlchemy ORM mappings for the core database schema.
 """
 import uuid
-from sqlalchemy import Column, String, ForeignKey, DateTime, Text, Integer, Boolean
+from sqlalchemy import Column, String, ForeignKey, DateTime, Text, Integer, Boolean, JSON, Float
 from sqlalchemy.types import TypeDecorator, CHAR, UserDefinedType
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.sql import func
@@ -84,6 +84,11 @@ class Document(Base):
     summary: str = Column(Text, nullable=True)
     safety_score: int = Column(Integer, nullable=True)
     risk_level: str = Column(String(50), nullable=True)
+    parties = Column(JSON, nullable=True)
+    key_dates = Column(JSON, nullable=True)
+    missing_sections = Column(JSON, nullable=True)
+    document_overview: str = Column(Text, nullable=True)
+    plain_english_summary: str = Column(Text, nullable=True)
 
 
 class AuditLog(Base):
@@ -119,6 +124,7 @@ class ExtractedText(Base):
     document_id = Column(GUID, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
     content: str = Column(Text, nullable=False)
     method: str = Column(String(100), nullable=False)
+    parsing_confidence: float = Column(Float, nullable=False, default=1.0)
 
 
 class Clause(Base):
@@ -132,6 +138,8 @@ class Clause(Base):
     clause_type: str = Column(String(100), nullable=False)
     clause_text: str = Column(Text, nullable=False)
     embedding = Column(Vector, nullable=True)
+    confidence_score: float = Column(Float, nullable=True)
+    category: str = Column(String(255), nullable=True)
 
 
 class RiskFlag(Base):
