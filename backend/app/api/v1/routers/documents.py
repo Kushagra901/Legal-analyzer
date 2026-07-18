@@ -23,7 +23,14 @@ router = APIRouter()
 ALLOWED_MIME_TYPES = {
     "application/pdf",
     "text/plain",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/msword",
+    "application/rtf",
+    "text/rtf",
+    "text/html",
+    "image/jpeg",
+    "image/png",
+    "image/tiff"
 }
 
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
@@ -154,7 +161,7 @@ async def upload_document(
 
     # 4. Extract Text Natively or via Tesseract OCR Fallback
     ocr_service = OCRService()
-    extracted_text, method = ocr_service.process_document(content)
+    extracted_text, method, parsing_confidence = ocr_service.process_document(content)
 
     # 5. Save to Database
     db_doc = Document(
@@ -172,7 +179,8 @@ async def upload_document(
             id=uuid.uuid4(),
             document_id=db_doc.id,
             content=extracted_text,
-            method=method
+            method=method,
+            parsing_confidence=parsing_confidence
         )
         db.add(db_extracted)
         db.commit()

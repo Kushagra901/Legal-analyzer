@@ -124,6 +124,7 @@ class ExtractedText(Base):
     document_id = Column(GUID, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
     content: str = Column(Text, nullable=False)
     method: str = Column(String(100), nullable=False)
+    parsing_confidence: float = Column(Float, nullable=False, default=1.0)
 
 
 class Clause(Base):

@@ -33,7 +33,7 @@ def test_compliance_sample_nda_file():
     assert os.path.exists(pdf_path), f"Sample NDA file not found at {pdf_path}"
     
     # Process document
-    text, method = ocr_service.process_document(pdf_path)
+    text, method, confidence = ocr_service.process_document(pdf_path)
     assert method == "native"
     assert len(text) > 0
     
@@ -47,6 +47,34 @@ def test_compliance_sample_nda_file():
         assert result["status"] == "non-compliant"
         assert len(result["violations"]) == 1
         assert "Indemnification Provision Detected" in result["violations"][0]
+
+
+def test_compliance_sample_docx_file():
+    """
+    Test compliance checks on the new sample DOCX contract document.
+    """
+    ocr_service = OCRService()
+    compliance_service = ComplianceService()
+    
+    docx_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "test-documents", "sample-contract.docx")
+    
+    assert os.path.exists(docx_path), f"Sample DOCX file not found at {docx_path}"
+    
+    # Process document
+    text, method, confidence = ocr_service.process_document(docx_path)
+    assert method == "native"
+    assert confidence == 1.0
+    assert len(text) > 0
+    
+    # Run compliance check in fallback/offline mode
+    with patch("app.services.llm_service.settings.GEMINI_API_KEY", ""):
+        result = compliance_service.check_compliance(text, "standard_nda")
+        
+        assert result["rule_set"] == "standard_nda"
+        # Since it contains confidential, term (3 years), and governing law (New York),
+        # and has no indemnification clauses, it should be fully compliant!
+        assert result["status"] == "compliant"
+        assert len(result["violations"]) == 0
 
 
 # --- Rule-Based Local Fallback Tests ---

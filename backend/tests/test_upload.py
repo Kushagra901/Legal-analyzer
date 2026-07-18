@@ -82,7 +82,7 @@ def test_upload_valid_pdf():
     
     # Mock storage service, OCR text extraction, and n8n webhook trigger
     with patch("app.services.storage_service.StorageService.upload_file", return_value="documents/mock-uuid/test_contract.pdf") as mock_upload, \
-         patch("app.services.ocr_service.OCRService.process_document", return_value=("This Mutual Non-Disclosure Agreement is governed by the laws of Delaware. Limitation of liability: neither party is liable for indirect damages. Either party may terminate with notice. Recipient will keep information confidential. Indemnity clause is included.", "native")) as mock_ocr, \
+         patch("app.services.ocr_service.OCRService.process_document", return_value=("This Mutual Non-Disclosure Agreement is governed by the laws of Delaware. Limitation of liability: neither party is liable for indirect damages. Either party may terminate with notice. Recipient will keep information confidential. Indemnity clause is included.", "native", 1.0)) as mock_ocr, \
          patch("app.api.v1.routers.documents.trigger_n8n_webhook") as mock_webhook:
         response = client.post(
             "/api/v1/documents",
@@ -126,16 +126,57 @@ def test_upload_valid_pdf():
         assert "Document uploaded and analyzed" in audit.action
         db.close()
 
+def test_upload_valid_docx():
+    """
+    Test uploading a valid DOCX document.
+    """
+    from app.models import ExtractedText
+    file_content = b"mock DOCX file content"
+    file_name = "test_contract.docx"
+    
+    # Mock storage, OCR (returning DOCX parsed equivalent), and n8n webhook
+    with patch("app.services.storage_service.StorageService.upload_file", return_value="documents/mock-uuid/test_contract.docx") as mock_upload, \
+         patch("app.services.ocr_service.OCRService.process_document", return_value=("This Mutual Non-Disclosure Agreement is governed by the laws of Delaware. Limitation of liability: neither party is liable for indirect damages. Either party may terminate with notice. Recipient will keep information confidential.", "native", 1.0)) as mock_ocr, \
+         patch("app.api.v1.routers.documents.trigger_n8n_webhook") as mock_webhook:
+        response = client.post(
+            "/api/v1/documents",
+            files={"file": (file_name, io.BytesIO(file_content), "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
+            headers={"Authorization": "Bearer test-token"}
+        )
+        
+        # Verify API response
+        assert response.status_code == 200
+        data = response.json()
+        assert data["filename"] == file_name
+        assert data["status"] == "completed"
+        assert "document_id" in data
+        assert "storage_path" in data
+        mock_upload.assert_called_once()
+        mock_ocr.assert_called_once()
+        mock_webhook.assert_called_once_with(data["document_id"], file_name)
+
+        # Verify DB entry
+        db = TestingSessionLocal()
+        doc = db.query(Document).filter(Document.filename == file_name).first()
+        assert doc is not None
+        assert doc.status == "completed"
+
+        # Verify ExtractedText entry has parsing_confidence
+        extracted = db.query(ExtractedText).filter(ExtractedText.document_id == doc.id).first()
+        assert extracted is not None
+        assert extracted.parsing_confidence == 1.0
+        db.close()
+
 def test_upload_invalid_file_type():
     """
-    Test that uploading an unsupported file format (e.g. PNG) is rejected.
+    Test that uploading an unsupported file format (e.g. GIF) is rejected.
     """
-    file_content = b"\x89PNG\r\n\x1a\n mock PNG content"
-    file_name = "image.png"
+    file_content = b"GIF89a mock GIF content"
+    file_name = "image.gif"
     
     response = client.post(
         "/api/v1/documents",
-        files={"file": (file_name, io.BytesIO(file_content), "image/png")},
+        files={"file": (file_name, io.BytesIO(file_content), "image/gif")},
         headers={"Authorization": "Bearer test-token"}
     )
     
