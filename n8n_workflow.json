@@ -20,7 +20,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "=SELECT status FROM public.automation_runs WHERE document_id = '{{ $json.body.document_id }}' AND workflow_name = 'Legal Analyzer Pipeline';"
+        "query": "=SELECT '{{ $json.body.document_id }}' AS document_id, '{{ $json.body.filename }}' AS filename, COALESCE((SELECT status FROM public.automation_runs WHERE document_id = '{{ $json.body.document_id }}' AND workflow_name = 'Legal Analyzer Pipeline'), 'not_started') AS status;"
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 1,
@@ -46,7 +46,8 @@
               "value2": "running"
             }
           ]
-        }
+        },
+        "combineOperation": "any"
       },
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
@@ -60,7 +61,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "=INSERT INTO public.automation_runs (document_id, workflow_name, status) VALUES ('{{ $node[\"Webhook (Document Uploaded)\"].json.body.document_id }}', 'Legal Analyzer Pipeline', 'running') ON CONFLICT (document_id, workflow_name) DO UPDATE SET status = 'running';"
+        "query": "=INSERT INTO public.automation_runs (document_id, workflow_name, status) VALUES ('{{ $json.document_id }}', 'Legal Analyzer Pipeline', 'running') ON CONFLICT (document_id, workflow_name) DO UPDATE SET status = 'running' RETURNING document_id, status, '{{ $json.filename }}' AS filename;"
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 1,
@@ -74,7 +75,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $node[\"Webhook (Document Uploaded)\"].json.body.document_id }}",
+        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $json.document_id }}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -111,7 +112,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $node[\"Webhook (Document Uploaded)\"].json.body.document_id }}/ocr",
+        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $json.document_id }}/ocr",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -126,7 +127,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $node[\"Webhook (Document Uploaded)\"].json.body.document_id }}/analyze",
+        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $json.document_id }}/analyze",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -141,7 +142,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $node[\"Webhook (Document Uploaded)\"].json.body.document_id }}/score",
+        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $json.document_id }}/score",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -156,7 +157,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $node[\"Webhook (Document Uploaded)\"].json.body.document_id }}/compliance",
+        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $json.document_id }}/compliance",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -171,7 +172,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $node[\"Webhook (Document Uploaded)\"].json.body.document_id }}/report",
+        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $json.document_id }}/report",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -186,7 +187,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $node[\"Webhook (Document Uploaded)\"].json.body.document_id }}/audit",
+        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $json.document_id }}/audit",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -203,7 +204,7 @@
         "conditions": {
           "number": [
             {
-              "value1": "={{ $node[\"HTTP Request (Calculate Risk Score)\"].json.safety_score }}",
+              "value1": "={{ $json.safety_score }}",
               "operation": "smaller",
               "value2": 50
             }
@@ -222,7 +223,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $node[\"Webhook (Document Uploaded)\"].json.body.document_id }}/escalate",
+        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $json.document_id }}/escalate",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -237,7 +238,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "=UPDATE public.automation_runs SET status = 'completed' WHERE document_id = '{{ $node[\"Webhook (Document Uploaded)\"].json.body.document_id }}' AND workflow_name = 'Legal Analyzer Pipeline';"
+        "query": "=UPDATE public.automation_runs SET status = 'completed' WHERE document_id = '{{ $json.document_id }}' AND workflow_name = 'Legal Analyzer Pipeline';\nSELECT d.id AS document_id, d.filename, d.safety_score, r.status FROM public.documents d JOIN public.automation_runs r ON d.id = r.document_id WHERE d.id = '{{ $json.document_id }}' AND r.workflow_name = 'Legal Analyzer Pipeline';"
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 1,
@@ -279,11 +280,11 @@
             },
             {
               "name": "subject",
-              "value": "=Document Analysis Complete: {{ $node[\"Webhook (Document Uploaded)\"].json.body.filename }}"
+              "value": "=Document Analysis Complete: {{ $json.filename }}"
             },
             {
               "name": "html",
-              "value": "=Your contract analysis for <strong>{{ $node[\"Webhook (Document Uploaded)\"].json.body.filename }}</strong> is ready.<br/>Safety Score: {{ $node[\"HTTP Request (Calculate Risk Score)\"].json.safety_score }}<br/><a href=\"http://localhost:3000/dashboard/documents/{{ $node[\"Webhook (Document Uploaded)\"].json.body.document_id }}\">View Analysis Dashboard</a>"
+              "value": "=Your contract analysis for <strong>{{ $json.filename }}</strong> is ready.<br/>Safety Score: {{ $json.safety_score }}<br/><a href=\"http://localhost:3000/dashboard/documents/{{ $json.document_id }}\">View Analysis Dashboard</a>"
             }
           ]
         },
@@ -335,7 +336,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "=UPDATE public.automation_runs SET retry_count = retry_count + 1, status = 'failed_retry' WHERE document_id = '{{ $node[\"Webhook (Document Uploaded)\"].json.body.document_id }}' AND workflow_name = 'Legal Analyzer Pipeline' RETURNING retry_count;"
+        "query": "=UPDATE public.automation_runs SET retry_count = retry_count + 1, status = 'failed_retry' WHERE document_id = '{{ $node[\"Webhook (Document Uploaded)\"].json.body.document_id }}' AND workflow_name = 'Legal Analyzer Pipeline';\nSELECT d.id AS document_id, d.filename, r.status, r.retry_count FROM public.documents d JOIN public.automation_runs r ON d.id = r.document_id WHERE d.id = '{{ $node[\"Webhook (Document Uploaded)\"].json.body.document_id }}' AND r.workflow_name = 'Legal Analyzer Pipeline';"
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 1,
@@ -351,7 +352,7 @@
         "conditions": {
           "number": [
             {
-              "value1": "={{ $node[\"Postgres (Increment Retry)\"].json.retry_count }}",
+              "value1": "={{ $json.retry_count }}",
               "operation": "largerEqual",
               "value2": 3
             }
@@ -370,7 +371,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "=UPDATE public.automation_runs SET status = 'failed' WHERE document_id = '{{ $node[\"Webhook (Document Uploaded)\"].json.body.document_id }}' AND workflow_name = 'Legal Analyzer Pipeline';"
+        "query": "=UPDATE public.automation_runs SET status = 'failed' WHERE document_id = '{{ $node[\"Webhook (Document Uploaded)\"].json.body.document_id }}' AND workflow_name = 'Legal Analyzer Pipeline';\nSELECT d.id AS document_id, d.filename, r.status FROM public.documents d JOIN public.automation_runs r ON d.id = r.document_id WHERE d.id = '{{ $node[\"Webhook (Document Uploaded)\"].json.body.document_id }}' AND r.workflow_name = 'Legal Analyzer Pipeline';"
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 1,
@@ -406,7 +407,7 @@
     },
     {
       "parameters": {
-        "amount": "={{ [30, 120, 600][($node[\"Postgres (Increment Retry)\"].json.retry_count || 1) - 1] }}",
+        "amount": "={{ [30, 120, 600][($json.retry_count || 1) - 1] }}",
         "unit": "seconds"
       },
       "type": "n8n-nodes-base.wait",
