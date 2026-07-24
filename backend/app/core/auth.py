@@ -12,7 +12,7 @@ from supabase import create_client, Client
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.models import User, Organization
+from app.models import User, Organization, Document
 
 # Disable auto_error so we can manually handle absent user-JWTs when X-Internal-Token is provided
 security_scheme = HTTPBearer(auto_error=False)
@@ -110,3 +110,36 @@ def get_current_user(
         db.refresh(user)
 
     return user
+
+
+def get_accessible_document(
+    db: Session,
+    document_uuid: uuid.UUID | str,
+    current_user: User
+) -> Document | None:
+    """
+    Resolves document access control for a given user.
+    - Administrators (including internal services running under admin bypass)
+      have full access to any document.
+    - Regular users are restricted to documents belonging to users in their organization.
+    Returns the Document instance if accessible, otherwise None.
+    Raises HTTPException(400) if the document_uuid format is invalid.
+    """
+    if isinstance(document_uuid, str):
+        try:
+            doc_uuid = uuid.UUID(document_uuid)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid document ID format."
+            )
+    else:
+        doc_uuid = document_uuid
+
+    if current_user.role == "admin":
+        return db.query(Document).filter(Document.id == doc_uuid).first()
+    else:
+        return db.query(Document).join(User).filter(
+            Document.id == doc_uuid,
+            User.org_id == current_user.org_id
+        ).first()

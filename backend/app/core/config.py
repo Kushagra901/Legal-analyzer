@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24 hours
     N8N_WEBHOOK_URL: str = "http://localhost:5678/webhook/document-uploaded"
     INTERNAL_SERVICE_TOKEN: str = "placeholder_internal_service_token_change_me"
+    FRONTEND_URL: str = "http://localhost:3000"
 
 
 settings = Settings()

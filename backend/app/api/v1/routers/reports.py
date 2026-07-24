@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models import Document, LegalReference, Clause, RiskFlag, ComplianceCheck, AuditLog, User
-from app.core.auth import get_current_user
+from app.core.auth import get_current_user, get_accessible_document
 
 router = APIRouter()
 
@@ -22,21 +22,7 @@ def get_report(
     """
     Retrieve generated memorandum audit report by document ID.
     """
-    try:
-        doc_uuid = uuid.UUID(document_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid document ID format."
-        )
-
-    if current_user.role == "admin":
-        doc = db.query(Document).filter(Document.id == doc_uuid).first()
-    else:
-        doc = db.query(Document).join(User).filter(
-            Document.id == doc_uuid,
-            User.org_id == current_user.org_id
-        ).first()
+    doc = get_accessible_document(db, document_id, current_user)
     if not doc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

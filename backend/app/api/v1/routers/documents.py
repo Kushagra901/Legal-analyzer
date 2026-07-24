@@ -16,7 +16,7 @@ from app.services.ocr_service import OCRService
 from app.services.llm_service import LLMService
 from app.services.risk_service import RiskService
 from app.services.compliance_service import ComplianceService
-from app.core.auth import get_current_user
+from app.core.auth import get_current_user, get_accessible_document
 
 router = APIRouter()
 
@@ -307,21 +307,7 @@ def get_document(
     """
     Retrieve details for an analyzed document.
     """
-    try:
-        doc_uuid = uuid.UUID(document_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid document ID format."
-        )
-
-    if current_user.role == "admin":
-        doc = db.query(Document).filter(Document.id == doc_uuid).first()
-    else:
-        doc = db.query(Document).join(User).filter(
-            Document.id == doc_uuid,
-            User.org_id == current_user.org_id
-        ).first()
+    doc = get_accessible_document(db, document_id, current_user)
     if not doc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -418,17 +404,10 @@ def run_ocr(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ) -> dict:
-    try:
-        doc_uuid = uuid.UUID(document_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid document ID format.")
-    doc = db.query(Document).join(User).filter(
-        Document.id == doc_uuid,
-        User.org_id == current_user.org_id
-    ).first()
+    doc = get_accessible_document(db, document_id, current_user)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found.")
-    return {"status": "ocr_completed", "document_id": document_id}
+    return {"status": "ocr_completed", "document_id": document_id, "filename": doc.filename}
 
 
 @router.post("/{document_id}/analyze")
@@ -437,14 +416,7 @@ def run_analysis(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ) -> dict:
-    try:
-        doc_uuid = uuid.UUID(document_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid document ID format.")
-    doc = db.query(Document).join(User).filter(
-        Document.id == doc_uuid,
-        User.org_id == current_user.org_id
-    ).first()
+    doc = get_accessible_document(db, document_id, current_user)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found.")
     
@@ -488,7 +460,7 @@ def run_analysis(
     doc.summary = analysis.get("summary", "")
     db.commit()
     
-    return {"status": "analyzed", "summary": doc.summary}
+    return {"status": "analyzed", "summary": doc.summary, "document_id": document_id, "filename": doc.filename}
 
 
 @router.post("/{document_id}/score")
@@ -497,14 +469,7 @@ def run_scoring(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ) -> dict:
-    try:
-        doc_uuid = uuid.UUID(document_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid document ID format.")
-    doc = db.query(Document).join(User).filter(
-        Document.id == doc_uuid,
-        User.org_id == current_user.org_id
-    ).first()
+    doc = get_accessible_document(db, document_id, current_user)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found.")
     
@@ -523,7 +488,7 @@ def run_scoring(
     doc.risk_level = risk_level
     db.commit()
     
-    return {"status": "scored", "safety_score": safety_score, "risk_level": risk_level}
+    return {"status": "scored", "safety_score": safety_score, "risk_level": risk_level, "document_id": document_id, "filename": doc.filename}
 
 
 @router.post("/{document_id}/compliance")
@@ -532,14 +497,7 @@ def run_compliance(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ) -> dict:
-    try:
-        doc_uuid = uuid.UUID(document_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid document ID format.")
-    doc = db.query(Document).join(User).filter(
-        Document.id == doc_uuid,
-        User.org_id == current_user.org_id
-    ).first()
+    doc = get_accessible_document(db, document_id, current_user)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found.")
     
@@ -559,7 +517,7 @@ def run_compliance(
     db.add(db_compliance)
     db.commit()
     
-    return {"status": "compliance_checked", "violations": compliance_res.get("violations", [])}
+    return {"status": "compliance_checked", "violations": compliance_res.get("violations", []), "document_id": document_id, "filename": doc.filename, "safety_score": doc.safety_score, "risk_level": doc.risk_level}
 
 
 @router.post("/{document_id}/report")
@@ -568,14 +526,7 @@ def run_report(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ) -> dict:
-    try:
-        doc_uuid = uuid.UUID(document_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid document ID format.")
-    doc = db.query(Document).join(User).filter(
-        Document.id == doc_uuid,
-        User.org_id == current_user.org_id
-    ).first()
+    doc = get_accessible_document(db, document_id, current_user)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found.")
     
@@ -589,7 +540,7 @@ def run_report(
     db.add(db_report)
     db.commit()
     
-    return {"status": "report_generated", "report_url": db_report.file_url}
+    return {"status": "report_generated", "report_url": db_report.file_url, "document_id": document_id, "filename": doc.filename, "safety_score": doc.safety_score, "risk_level": doc.risk_level}
 
 
 class AuditAction(BaseModel):
@@ -603,14 +554,7 @@ def run_audit(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ) -> dict:
-    try:
-        doc_uuid = uuid.UUID(document_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid document ID format.")
-    doc = db.query(Document).join(User).filter(
-        Document.id == doc_uuid,
-        User.org_id == current_user.org_id
-    ).first()
+    doc = get_accessible_document(db, document_id, current_user)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found.")
     
@@ -623,7 +567,7 @@ def run_audit(
     db.add(audit_log)
     db.commit()
     
-    return {"status": "audit_logged"}
+    return {"status": "audit_logged", "document_id": document_id, "filename": doc.filename, "safety_score": doc.safety_score, "risk_level": doc.risk_level}
 
 
 @router.post("/{document_id}/escalate")
@@ -632,14 +576,7 @@ def escalate_document(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ) -> dict:
-    try:
-        doc_uuid = uuid.UUID(document_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid document ID format.")
-    doc = db.query(Document).join(User).filter(
-        Document.id == doc_uuid,
-        User.org_id == current_user.org_id
-    ).first()
+    doc = get_accessible_document(db, document_id, current_user)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found.")
     
@@ -652,5 +589,5 @@ def escalate_document(
     db.add(audit_log)
     db.commit()
     
-    return {"status": "flagged", "message": "Escalated to human review."}
+    return {"status": "flagged", "message": "Escalated to human review.", "document_id": document_id, "filename": doc.filename, "safety_score": doc.safety_score, "risk_level": doc.risk_level}
 
