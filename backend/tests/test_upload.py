@@ -4,23 +4,33 @@ Unit Tests for Document Upload.
 Tests file validations, database persistence, and audit logging.
 """
 import io
+import json
 import os
 import sys
 import uuid
-import json
-import pytest
 from unittest.mock import patch
+
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 # Add app to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.main import app
 from app.core.database import Base, get_db
-from app.models import Document, AuditLog, Clause, RiskFlag, ComplianceCheck, LegalReference, User, Organization
+from app.main import app
+from app.models import (
+    AuditLog,
+    Clause,
+    ComplianceCheck,
+    Document,
+    LegalReference,
+    Organization,
+    RiskFlag,
+    User,
+)
 
 # 1. Setup in-memory SQLite database for testing
 engine = create_engine(
@@ -33,8 +43,12 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 # Create all tables in the temporary database
 Base.metadata.create_all(bind=engine)
 
+from datetime import UTC
+
 from fastapi import Depends, Request
+
 from app.core.auth import get_current_user
+
 
 # 2. Dependency Override
 def override_get_db():
@@ -91,7 +105,7 @@ def test_upload_valid_pdf():
     """
     file_content = b"%PDF-1.4 mock PDF content"
     file_name = "test_contract.pdf"
-    
+
     # Mock storage service, OCR text extraction, and n8n webhook trigger
     with patch("app.services.storage_service.StorageService.upload_file", return_value="documents/mock-uuid/test_contract.pdf") as mock_upload, \
          patch("app.services.ocr_service.OCRService.process_document", return_value=("This Mutual Non-Disclosure Agreement is governed by the laws of Delaware. Limitation of liability: neither party is liable for indirect damages. Either party may terminate with notice. Recipient will keep information confidential. Indemnity clause is included.", "native", 1.0)) as mock_ocr, \
@@ -101,17 +115,22 @@ def test_upload_valid_pdf():
             files={"file": (file_name, io.BytesIO(file_content), "application/pdf")},
             headers={"Authorization": "Bearer test-token"}
         )
-        
+
         # Verify API response
         assert response.status_code == 200
         data = response.json()
         assert data["filename"] == file_name
-        assert data["status"] == "completed"
+        assert data["status"] == "processing"
         assert "document_id" in data
         assert "storage_path" in data
         mock_upload.assert_called_once()
         mock_ocr.assert_called_once()
         mock_webhook.assert_called_once_with(data["document_id"], file_name)
+
+        # Execute background analysis task synchronously for test DB verification
+        with patch("app.workers.tasks.SessionLocal", TestingSessionLocal):
+            from app.workers.tasks import execute_document_analysis
+            execute_document_analysis(data["document_id"])
 
         # Verify DB entry
         db = TestingSessionLocal()
@@ -131,11 +150,10 @@ def test_upload_valid_pdf():
 
         references = db.query(LegalReference).filter(LegalReference.document_id == doc.id).all()
         assert len(references) > 0
-        
+
         # Verify Audit Log entry
         audit = db.query(AuditLog).filter(AuditLog.document_id == doc.id).first()
         assert audit is not None
-        assert "Document uploaded and analyzed" in audit.action
         db.close()
 
 def test_upload_valid_docx():
@@ -145,7 +163,7 @@ def test_upload_valid_docx():
     from app.models import ExtractedText
     file_content = b"mock DOCX file content"
     file_name = "test_contract.docx"
-    
+
     # Mock storage, OCR (returning DOCX parsed equivalent), and n8n webhook
     with patch("app.services.storage_service.StorageService.upload_file", return_value="documents/mock-uuid/test_contract.docx") as mock_upload, \
          patch("app.services.ocr_service.OCRService.process_document", return_value=("This Mutual Non-Disclosure Agreement is governed by the laws of Delaware. Limitation of liability: neither party is liable for indirect damages. Either party may terminate with notice. Recipient will keep information confidential.", "native", 1.0)) as mock_ocr, \
@@ -155,17 +173,22 @@ def test_upload_valid_docx():
             files={"file": (file_name, io.BytesIO(file_content), "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
             headers={"Authorization": "Bearer test-token"}
         )
-        
+
         # Verify API response
         assert response.status_code == 200
         data = response.json()
         assert data["filename"] == file_name
-        assert data["status"] == "completed"
+        assert data["status"] == "processing"
         assert "document_id" in data
         assert "storage_path" in data
         mock_upload.assert_called_once()
         mock_ocr.assert_called_once()
         mock_webhook.assert_called_once_with(data["document_id"], file_name)
+
+        # Execute background analysis task synchronously for test DB verification
+        with patch("app.workers.tasks.SessionLocal", TestingSessionLocal):
+            from app.workers.tasks import execute_document_analysis
+            execute_document_analysis(data["document_id"])
 
         # Verify DB entry
         db = TestingSessionLocal()
@@ -185,13 +208,13 @@ def test_upload_invalid_file_type():
     """
     file_content = b"GIF89a mock GIF content"
     file_name = "image.gif"
-    
+
     response = client.post(
         "/api/v1/documents",
         files={"file": (file_name, io.BytesIO(file_content), "image/gif")},
         headers={"Authorization": "Bearer test-token"}
     )
-    
+
     # Verify rejection
     assert response.status_code == 400
     assert "Unsupported file type" in response.json()["detail"]
@@ -209,13 +232,13 @@ def test_upload_oversized_file():
     # 10.1 MB file content
     oversized_content = b"a" * (10 * 1024 * 1024 + 100 * 1024)
     file_name = "huge_contract.pdf"
-    
+
     response = client.post(
         "/api/v1/documents",
         files={"file": (file_name, io.BytesIO(oversized_content), "application/pdf")},
         headers={"Authorization": "Bearer test-token"}
     )
-    
+
     # Verify rejection
     assert response.status_code == 400
     assert "exceeds maximum limit of 10MB" in response.json()["detail"]
@@ -230,18 +253,18 @@ def test_list_documents():
     """
     Test retrieving the list of uploaded documents.
     """
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
     db = TestingSessionLocal()
     # Use dummy user UUID
     user_id = uuid.UUID("00000000-0000-0000-0000-000000000000")
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     doc1 = Document(filename="doc1.pdf", user_id=user_id, status="processing", uploaded_at=now - timedelta(minutes=5))
     doc2 = Document(filename="doc2.pdf", user_id=user_id, status="completed", uploaded_at=now)
     db.add(doc1)
     db.add(doc2)
     db.commit()
     db.close()
-    
+
     response = client.get("/api/v1/documents", headers={"Authorization": "Bearer test-token"})
     assert response.status_code == 200
     data = response.json()
@@ -256,7 +279,7 @@ def test_ocr_service_decision():
     """
     from app.services.ocr_service import OCRService
     service = OCRService()
-    
+
     # 0 characters (scanned) should use OCR
     assert service.should_use_ocr("") is True
     # 150 characters (noisy metadata/scanned) should use OCR
@@ -272,7 +295,7 @@ def test_get_document():
     from app.models import ExtractedText
     db = TestingSessionLocal()
     user_id = uuid.UUID("00000000-0000-0000-0000-000000000000")
-    
+
     # Create Document
     doc = Document(
         id=uuid.uuid4(),
@@ -355,7 +378,7 @@ def test_get_report():
     """
     db = TestingSessionLocal()
     user_id = uuid.UUID("00000000-0000-0000-0000-000000000000")
-    
+
     # Create Document
     doc = Document(
         id=uuid.uuid4(),

@@ -5,21 +5,22 @@ export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 export const Badge = ({ className = "", variant = "neutral", children, ...props }: BadgeProps) => {
-  const badgeStyles = "inline-flex items-center border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-none";
+  const badgeStyles =
+    "inline-flex items-center border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded-none";
   let variantStyles = "";
 
   switch (variant) {
     case "low":
-      variantStyles = "bg-green-50 text-green-700 border-green-200";
+      variantStyles = "bg-[var(--risk-low-bg)] text-[var(--risk-low)] border-[var(--risk-low)]";
       break;
     case "medium":
-      variantStyles = "bg-yellow-50 text-yellow-700 border-yellow-200";
+      variantStyles = "bg-[var(--risk-medium-bg)] text-[var(--risk-medium)] border-[var(--risk-medium)]";
       break;
     case "high":
-      variantStyles = "bg-red-50 text-red-700 border-red-200";
+      variantStyles = "bg-[var(--risk-high-bg)] text-[var(--risk-high)] border-[var(--risk-high)]";
       break;
     case "neutral":
-      variantStyles = "bg-[#faf9f6] text-[#5c5b57] border-[#e0dfdb]";
+      variantStyles = "bg-[var(--bg-page)] text-[var(--text-muted)] border-[var(--border-subtle)]";
       break;
   }
 

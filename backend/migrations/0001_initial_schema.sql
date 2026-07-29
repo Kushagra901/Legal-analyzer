@@ -140,6 +140,19 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.notifications TO anon, authentica
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.audit_logs TO anon, authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.automation_runs TO anon, authenticated;
 
+-- 13. Clause Reviews table (tracks attorney review decisions & notes)
+CREATE TABLE IF NOT EXISTS public.clause_reviews (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    clause_id UUID NOT NULL REFERENCES public.clauses(id) ON DELETE CASCADE,
+    document_id UUID NOT NULL REFERENCES public.documents(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    decision VARCHAR(50) NOT NULL DEFAULT 'pending',
+    note TEXT,
+    reviewed_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.clause_reviews TO anon, authenticated;
+
 -- Ensure document table has summary, safety_score, risk_level if it was already created
 ALTER TABLE public.documents ADD COLUMN IF NOT EXISTS summary TEXT;
 ALTER TABLE public.documents ADD COLUMN IF NOT EXISTS safety_score INTEGER;
@@ -147,3 +160,4 @@ ALTER TABLE public.documents ADD COLUMN IF NOT EXISTS risk_level VARCHAR(50);
 
 -- Ensure automation_runs has retry_count if it was already created
 ALTER TABLE public.automation_runs ADD COLUMN IF NOT EXISTS retry_count INTEGER NOT NULL DEFAULT 0;
+

@@ -7,13 +7,15 @@ for DOCX, HTML, RTF, TXT, DOC, and images with fallback mechanisms.
 import io
 import os
 import re
-from pypdf import PdfReader
-import fitz  # PyMuPDF
-from PIL import Image
-import pytesseract
+
 import docx
+import fitz  # PyMuPDF
+import pytesseract
 from bs4 import BeautifulSoup
+from PIL import Image
+from pypdf import PdfReader
 from striprtf.striprtf import rtf_to_text
+
 
 class OCRService:
     """
@@ -174,7 +176,7 @@ class OCRService:
             if isinstance(file_source, bytes):
                 content = file_source.decode("utf-8", errors="ignore")
             else:
-                with open(file_source, "r", encoding="utf-8", errors="ignore") as f:
+                with open(file_source, encoding="utf-8", errors="ignore") as f:
                     content = f.read()
             soup = BeautifulSoup(content, "html.parser")
             return soup.get_text(separator="\n")
@@ -190,7 +192,7 @@ class OCRService:
             if isinstance(file_source, bytes):
                 content = file_source.decode("latin-1", errors="ignore")
             else:
-                with open(file_source, "r", encoding="latin-1", errors="ignore") as f:
+                with open(file_source, encoding="latin-1", errors="ignore") as f:
                     content = f.read()
             return rtf_to_text(content)
         except Exception as e:
@@ -208,7 +210,7 @@ class OCRService:
                 except UnicodeDecodeError:
                     return file_source.decode("latin-1", errors="ignore")
             else:
-                with open(file_source, "r", encoding="utf-8", errors="ignore") as f:
+                with open(file_source, encoding="utf-8", errors="ignore") as f:
                     return f.read()
         except Exception as e:
             print(f"Error during TXT extraction: {e}")

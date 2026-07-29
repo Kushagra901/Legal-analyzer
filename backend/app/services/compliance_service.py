@@ -2,8 +2,8 @@
 Compliance Service.
 Performs rules audit checks against company templates.
 """
-import re
 from app.services.llm_service import LLMService
+
 
 class ComplianceService:
     """
@@ -45,27 +45,27 @@ class ComplianceService:
 
         # Standard NDA policy checks (rule-based local fallback)
         text_lower = text.lower()
-        
+
         # 1. Confidentiality Scope
         if "confidential" not in text_lower and "disclosure" not in text_lower:
             violations.append("Missing Confidentiality Obligations: The agreement does not contain standard confidentiality language.")
-            
+
         # 2. Term Length (checking for duration or term references)
         term_keywords = ["term", "duration", "period", "years", "months", "survive", "surviving", "expiration", "terminate", "termination"]
         has_term = any(kw in text_lower for kw in term_keywords)
         if not has_term:
             violations.append("Missing Confidentiality Term: The agreement does not specify a duration or term for the confidentiality obligations.")
-            
+
         # 3. Governing Law Present
         gov_keywords = ["governing law", "jurisdiction", "applicable law", "courts of", "governed by"]
         has_gov = any(kw in text_lower for kw in gov_keywords)
         if not has_gov:
             violations.append("Missing Governing Law or Jurisdiction: The agreement does not define applicable governing law.")
-            
+
         # 4. Indemnification Warning (standard warning/risk for NDAs)
         if "indemnity" in text_lower or "indemnify" in text_lower or "hold harmless" in text_lower:
             violations.append("Indemnification Provision Detected: NDAs typically should not contain complex indemnification requirements.")
-            
+
         status = "compliant" if not violations else "non-compliant"
         return {
             "rule_set": rule_set,

@@ -3,17 +3,36 @@ Main entry point for the FastAPI application.
 Configures middleware, registers routers, and initializes the status handler.
 """
 
+import sentry_sdk
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 from app.api.v1.routers import admin, auth, documents, reports
 from app.core.config import settings
+from app.core.limiter import limiter
+from app.core.security_headers import SecurityHeadersMiddleware
+from app.models.schemas import HealthResponse
+
+if settings.SENTRY_DSN:
+    sentry_sdk.init(dsn=settings.SENTRY_DSN, traces_sample_rate=0.1)
 
 app = FastAPI(
+
     title="Legal Analyzer API",
     description="Backend API for Legal Analyzer legal contract audit service",
     version="1.0.0",
 )
+
+# Configure Rate Limiter
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
+
+# Configure Security Headers
+app.add_middleware(SecurityHeadersMiddleware)
 
 # Configure CORS
 app.add_middleware(
@@ -31,12 +50,12 @@ app.include_router(reports.router, prefix="/api/v1/reports", tags=["Reports"])
 app.include_router(admin.router, prefix="/api/v1/admin", tags=["Administration"])
 
 
-@app.get("/health")
-def health_check() -> dict[str, str]:
+@app.get("/health", response_model=HealthResponse)
+def health_check() -> HealthResponse:
     """
     Retrieves the service health status.
 
     Returns:
-        dict[str, str]: A dictionary showing the current server status.
+        HealthResponse: The operational health status schema.
     """
-    return {"status": "healthy"}
+    return HealthResponse(status="healthy")
