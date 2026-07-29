@@ -3,28 +3,33 @@ Authentication router.
 Handles user registration, login, and token verification stubs.
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
+
+from app.core.limiter import limiter
+from app.models.schemas import AuthMessageResponse
 
 router = APIRouter()
 
 
-@router.post("/login")
-def login() -> dict[str, str]:
+@router.post("/login", response_model=AuthMessageResponse)
+@limiter.limit("10/minute")
+def login(request: Request) -> AuthMessageResponse:
     """
     User login endpoint placeholder.
 
     Returns:
-        dict[str, str]: Stated login response.
+        AuthMessageResponse: Stated login response.
     """
-    return {"message": "login successful"}
+    return AuthMessageResponse(message="login successful")
 
 
-@router.post("/signup")
-def signup() -> dict[str, str]:
+@router.post("/signup", response_model=AuthMessageResponse)
+@limiter.limit("10/minute")
+def signup(request: Request) -> AuthMessageResponse:
     """
     User signup endpoint placeholder.
 
     Returns:
-        dict[str, str]: Stated signup response.
+        AuthMessageResponse: Stated signup response.
     """
-    return {"message": "signup successful"}
+    return AuthMessageResponse(message="signup successful")

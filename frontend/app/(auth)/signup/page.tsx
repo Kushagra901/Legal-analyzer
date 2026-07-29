@@ -1,162 +1,136 @@
 "use client";
 
-/**
- * @file page.tsx
- * @description Signup page component for user registration using Supabase Auth.
- */
-
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 
 export default function SignupPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
-    setErrorMessage(null);
-    setSuccessMessage(null);
-
-    // 1. Validation
-    if (!email || !password || !confirmPassword) {
-      setErrorMessage("All fields are required.");
-      setIsSubmitting(false);
-      return;
-    }
-
     if (password !== confirmPassword) {
-      setErrorMessage("Passwords do not match.");
-      setIsSubmitting(false);
+      setError("Passwords do not match.");
       return;
     }
 
-    if (password.length < 6) {
-      setErrorMessage("Password must be at least 6 characters.");
-      setIsSubmitting(false);
-      return;
-    }
+    setLoading(true);
+    setError(null);
 
     try {
-      // 2. Supabase SignUp
-      const { data, error } = await supabase.auth.signUp({
+      const { error: authError } = await supabase.auth.signUp({
         email,
         password,
       });
 
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      // If signUp succeeded, check if the session is available
-      if (data?.session) {
-        setSuccessMessage("Account created successfully! Redirecting...");
+      if (authError) {
+        setError(authError.message);
+      } else {
+        setSuccess(true);
         setTimeout(() => {
           router.push("/dashboard");
         }, 1500);
-      } else {
-        setSuccessMessage("Account created successfully! Please check your email to verify your address.");
-        setEmail("");
-        setPassword("");
-        setConfirmPassword("");
       }
     } catch (err: any) {
-      setErrorMessage(err.message || "An unexpected error occurred during signup.");
+      setError(err.message || "An unexpected error occurred.");
     } finally {
-      setIsSubmitting(false);
+      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#faf9f6] text-[#1c1c1c] flex flex-col justify-center items-center p-6 font-sans">
-      <div className="w-full max-w-md bg-white border border-[#e0dfdb] p-8 rounded-none">
-        <h1 className="font-serif text-3xl font-normal mb-6 text-[#0d1b2a]">
-          Legal Analyzer
-        </h1>
-        <p className="text-sm text-[#5c5b57] mb-6">
-          Create an account to start reviewing your legal documents.
-        </p>
-
-        {errorMessage && (
-          <div className="mb-4 p-3 bg-[#faf9f6] border border-[#ff4d4d] text-[#ff4d4d] text-xs">
-            {errorMessage}
-          </div>
-        )}
-
-        {successMessage && (
-          <div className="mb-4 p-3 bg-[#faf9f6] border border-[#2b9348] text-[#2b9348] text-xs">
-            {successMessage}
-          </div>
-        )}
-
-        <form onSubmit={handleSignup} className="space-y-4">
-          <div>
-            <label className="block text-xs uppercase tracking-wider text-[#5c5b57] mb-1 font-semibold">
-              Email Address
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full border border-[#e0dfdb] px-3 py-2 text-sm bg-[#faf9f6] focus:outline-none focus:border-[#0d1b2a] rounded-none"
-              placeholder="name@company.com"
-              disabled={isSubmitting}
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs uppercase tracking-wider text-[#5c5b57] mb-1 font-semibold">
-              Password
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full border border-[#e0dfdb] px-3 py-2 text-sm bg-[#faf9f6] focus:outline-none focus:border-[#0d1b2a] rounded-none"
-              placeholder="••••••••"
-              disabled={isSubmitting}
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs uppercase tracking-wider text-[#5c5b57] mb-1 font-semibold">
-              Confirm Password
-            </label>
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full border border-[#e0dfdb] px-3 py-2 text-sm bg-[#faf9f6] focus:outline-none focus:border-[#0d1b2a] rounded-none"
-              placeholder="••••••••"
-              disabled={isSubmitting}
-              required
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full bg-[#0d1b2a] hover:bg-[#1a2f4c] text-[#faf9f6] text-sm py-2.5 font-semibold transition-colors duration-200 rounded-none uppercase tracking-wider disabled:opacity-50 cursor-pointer"
-          >
-            {isSubmitting ? "Creating Account..." : "Create Account"}
-          </button>
-        </form>
-
-        <div className="mt-6 pt-6 border-t border-[#e0dfdb] text-center text-xs text-[#5c5b57]">
-          Already have an account?{" "}
-          <Link href="/login" className="text-[#0d1b2a] underline font-semibold">
-            Sign In
-          </Link>
+    <div className="min-h-screen flex flex-col justify-center items-center p-6 bg-[var(--bg-page)] text-[var(--text-main)]">
+      <div className="w-full max-w-md space-y-6">
+        <div className="text-center space-y-2">
+          <h1 className="font-serif text-3xl font-bold text-[var(--accent-primary)]">
+            LEGAL ANALYZER
+          </h1>
+          <p className="text-xs uppercase tracking-wider text-[var(--text-muted)] font-semibold">
+            Registration & Workspace Setup
+          </p>
         </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Create Attorney Account</CardTitle>
+            <CardDescription>
+              Register your email to manage contracts and access compliance audit tools.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSignup} className="space-y-4">
+              {error && (
+                <div className="p-3 bg-[var(--risk-high-bg)] border border-[var(--risk-high)] text-[var(--risk-high)] text-xs">
+                  {error}
+                </div>
+              )}
+              {success && (
+                <div className="p-3 bg-[var(--risk-low-bg)] border border-[var(--risk-low)] text-[var(--risk-low)] text-xs font-semibold">
+                  Account successfully created. Redirecting to workspace...
+                </div>
+              )}
+              <div className="space-y-1">
+                <label className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                  Work Email Address
+                </label>
+                <Input
+                  type="email"
+                  required
+                  placeholder="lawyer@firm.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                  Password
+                </label>
+                <Input
+                  type="password"
+                  required
+                  placeholder="Minimum 8 characters"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                  Confirm Password
+                </label>
+                <Input
+                  type="password"
+                  required
+                  placeholder="Re-enter password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? "Registering..." : "Create Account"}
+              </Button>
+            </form>
+          </CardContent>
+          <CardFooter className="flex justify-between items-center text-xs">
+            <span className="text-[var(--text-muted)]">Already have an account?</span>
+            <Link href="/login" className="font-semibold text-[var(--accent-primary)] hover:underline">
+              Sign In
+            </Link>
+          </CardFooter>
+        </Card>
+
+        <p className="text-[11px] text-center text-[var(--text-muted)] leading-relaxed">
+          Legal Analyzer assists first-pass contract extraction — does not constitute formal legal counsel.
+        </p>
       </div>
     </div>
   );

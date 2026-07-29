@@ -4,11 +4,24 @@ Database Models.
 Defines SQLAlchemy ORM mappings for the core database schema.
 """
 import uuid
-from sqlalchemy import Column, String, ForeignKey, DateTime, Text, Integer, Boolean, JSON, Float
-from sqlalchemy.types import TypeDecorator, CHAR, UserDefinedType
+
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+)
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.sql import func
+from sqlalchemy.types import CHAR, TypeDecorator, UserDefinedType
+
 from app.core.database import Base
+
 
 class GUID(TypeDecorator):
     """
@@ -215,4 +228,21 @@ class AutomationRun(Base):
     status: str = Column(String(100), nullable=False)
     retry_count: int = Column(Integer, nullable=False, default=0)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class ClauseReview(Base):
+    """
+    SQLAlchemy model representing the clause_reviews table.
+    Tracks attorney review decisions and notes for individual clauses.
+    """
+    __tablename__ = "clause_reviews"
+
+    id = Column(GUID, primary_key=True, default=uuid.uuid4)
+    clause_id = Column(GUID, ForeignKey("clauses.id", ondelete="CASCADE"), nullable=False)
+    document_id = Column(GUID, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(GUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    decision: str = Column(String(50), nullable=False, default="pending")
+    note: str = Column(Text, nullable=True)
+    reviewed_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
 

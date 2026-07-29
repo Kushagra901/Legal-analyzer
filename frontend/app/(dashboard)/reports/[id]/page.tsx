@@ -1,214 +1,239 @@
-/**
- * @file page.tsx
- * @description Report page displaying the final legal memo audit summary.
- */
-
 "use client";
-
-/**
- * @file page.tsx
- * @description Report page displaying the final legal memo audit summary.
- */
 
 import React, { useEffect, useState, use } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
 import { apiClient } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 
-interface Citation {
-  source: string;
-  citation: string;
-}
-
-interface ReportData {
+interface ReportDetail {
   document_id: string;
   filename: string;
-  uploaded_at: string;
+  summary: string;
   safety_score: number;
   risk_level: string;
-  summary: string;
-  recommendations: string[];
-  citations: Citation[];
+  clauses: Array<{
+    type: string;
+    text: string;
+    risk_level?: string;
+    explanation?: string;
+  }>;
+  citations: Array<{
+    source: string;
+    citation: string;
+  }>;
+  compliance_checks?: Array<{
+    rule_set: string;
+    violations: string[];
+  }>;
+  generated_at?: string;
 }
 
-interface PageProps {
+export default function ReportPage({
+  params,
+}: {
   params: Promise<{ id: string }>;
-}
-
-export default function ReportDetailPage({ params }: PageProps) {
+}) {
   const resolvedParams = use(params);
   const docId = resolvedParams.id;
 
-  const router = useRouter();
-  const [report, setReport] = useState<ReportData | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [report, setReport] = useState<ReportDetail | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const checkSessionAndFetch = async () => {
-      const { data } = await supabase.auth.getSession();
-      if (!data.session) {
-        router.push("/login");
-        return;
-      }
+    async function loadReport() {
       try {
-        setIsLoading(true);
-        const dataReport = await apiClient.fetchReport(docId);
-        setReport(dataReport);
-        setError(null);
+        const data = await apiClient.getReport(docId);
+        setReport(data);
       } catch (err: any) {
-        setError(err.message || "Failed to load legal report.");
+        setError(err.message || "Failed to load report.");
       } finally {
-        setIsLoading(false);
+        setLoading(false);
       }
-    };
-    checkSessionAndFetch();
-  }, [docId, router]);
+    }
+    loadReport();
+  }, [docId]);
 
   const handlePrint = () => {
-    window.print();
-  };
-
-  const formatDate = (dateStr: string) => {
-    if (!dateStr) return "";
-    try {
-      const date = new Date(dateStr);
-      return date.toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      });
-    } catch {
-      return dateStr;
+    if (typeof window !== "undefined") {
+      window.print();
     }
   };
 
-  if (isLoading) {
+  if (loading) {
     return (
-      <div className="min-h-screen bg-[#faf9f6] text-[#1c1c1c] font-sans p-8 flex items-center justify-center">
-        <div className="max-w-4xl w-full bg-white border border-[#e0dfdb] p-12 space-y-6 animate-pulse">
-          <div className="h-8 bg-[#e0dfdb] w-1/2"></div>
-          <div className="h-px bg-[#e0dfdb]"></div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="h-10 bg-[#e0dfdb]"></div>
-            <div className="h-10 bg-[#e0dfdb]"></div>
-          </div>
-          <div className="h-24 bg-[#e0dfdb]"></div>
-        </div>
+      <div className="p-12 text-center text-xs text-[var(--text-muted)] animate-pulse">
+        Generating print-ready memo report...
       </div>
     );
   }
 
   if (error || !report) {
     return (
-      <div className="min-h-screen bg-[#faf9f6] text-[#1c1c1c] font-sans flex flex-col items-center justify-center p-8">
-        <div className="max-w-md w-full border border-[#ff4d4d] bg-white p-6 text-center space-y-4">
-          <h2 className="font-serif text-lg text-[#0d1b2a]">Report Error</h2>
-          <p className="text-xs text-[#5c5b57]">{error || "Failed to load memorandum report."}</p>
-          <Link href={`/documents/${docId}`} className="inline-block bg-[#0d1b2a] text-white px-4 py-2 text-xs font-semibold uppercase tracking-wider hover:bg-[#1a2f4c]">
-            Return to Analysis
-          </Link>
+      <div className="p-8 max-w-xl mx-auto space-y-4">
+        <div className="p-4 bg-[var(--risk-high-bg)] border border-[var(--risk-high)] text-[var(--risk-high)] text-xs">
+          {error || "Report not found."}
         </div>
+        <Link href="/dashboard">
+          <Button variant="secondary">Back to Dashboard</Button>
+        </Link>
       </div>
     );
   }
 
+  const currentDate = new Date().toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  const riskLevel = (report.risk_level?.toLowerCase() || "neutral") as "low" | "medium" | "high" | "neutral";
+
   return (
-    <div className="min-h-screen bg-[#faf9f6] text-[#1c1c1c] font-sans p-8 print:bg-white print:p-0">
-      {/* Back button and Print options for layout */}
-      <div className="max-w-4xl mx-auto mb-6 flex justify-between items-center print:hidden">
-        <Link href={`/documents/${docId}`} className="text-xs text-[#5c5b57] hover:underline uppercase tracking-wider font-semibold">
-          &larr; Back to analysis
+    <div className="space-y-6 max-w-5xl mx-auto">
+      {/* Top Action Header - Hidden when printing */}
+      <div className="no-print flex items-center justify-between border-b border-[var(--border-subtle)] pb-4">
+        <Link href={`/documents/${docId}`}>
+          <Button variant="secondary">← Back to Split-Pane</Button>
         </Link>
-        <button 
-          onClick={handlePrint}
-          className="bg-[#0d1b2a] hover:bg-[#1a2f4c] text-[#faf9f6] px-4 py-1.5 text-xs font-semibold uppercase tracking-wider rounded-none transition-colors duration-200"
-        >
-          Print Memo
-        </button>
+        <Button variant="primary" onClick={handlePrint}>
+          Print / Save PDF Memo
+        </Button>
       </div>
 
-      {/* Main Memo sheet */}
-      <div className="max-w-4xl mx-auto bg-white border border-[#e0dfdb] p-12 rounded-none space-y-8 shadow-none print:border-0 print:p-0">
+      {/* Print-Ready Legal Memorandum Container */}
+      <div className="print-area bg-white p-8 md:p-12 border border-[var(--border-subtle)] text-[var(--text-main)] space-y-8">
         {/* Memo Header */}
-        <div className="border-b-2 border-[#0d1b2a] pb-6">
-          <h1 className="font-serif text-3xl font-normal text-[#0d1b2a] tracking-wide mb-1">
-            LEGAL AUDIT MEMORANDUM
-          </h1>
-          <p className="text-xs text-[#8a8985] uppercase tracking-wider">
-            Generated by Legal Analyzer automated triage platform
-          </p>
-        </div>
+        <div className="border-b-2 border-[var(--border-dark)] pb-6 space-y-4">
+          <div className="flex justify-between items-start">
+            <div>
+              <h1 className="font-serif text-3xl font-bold tracking-tight text-[var(--accent-primary)]">
+                LEGAL AUDIT MEMORANDUM
+              </h1>
+              <p className="text-xs uppercase tracking-widest text-[var(--text-muted)] font-bold mt-1">
+                FIRST-PASS CONTRACT REVIEW & RISK ASSESSMENT
+              </p>
+            </div>
+            <div className="text-right">
+              <Badge variant={riskLevel} className="text-xs px-3 py-1">
+                {report.risk_level} RISK ASSIGNED
+              </Badge>
+            </div>
+          </div>
 
-        {/* Memo Fields */}
-        <div className="grid grid-cols-2 gap-4 text-xs border-b border-[#e0dfdb] pb-6">
-          <div>
-            <span className="block text-[#8a8985] uppercase font-semibold">To:</span>
-            <span className="text-sm font-semibold">Internal Operations Team</span>
-          </div>
-          <div>
-            <span className="block text-[#8a8985] uppercase font-semibold">Date:</span>
-            <span className="text-sm font-semibold">{formatDate(report.uploaded_at)}</span>
-          </div>
-          <div>
-            <span className="block text-[#8a8985] uppercase font-semibold">Document Ref:</span>
-            <span className="text-sm font-mono font-semibold">{report.filename} ({report.document_id.substring(0, 8)})</span>
-          </div>
-          <div>
-            <span className="block text-[#8a8985] uppercase font-semibold">Safety Score:</span>
-            <span className="text-sm font-mono font-bold text-green-700">{report.safety_score} / 100</span>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs pt-4 border-t border-[var(--border-subtle)] font-mono">
+            <div>
+              <span className="text-[var(--text-muted)] block uppercase text-[10px]">DATE:</span>
+              <span>{currentDate}</span>
+            </div>
+            <div>
+              <span className="text-[var(--text-muted)] block uppercase text-[10px]">DOCUMENT:</span>
+              <span className="truncate block font-semibold">{report.filename}</span>
+            </div>
+            <div>
+              <span className="text-[var(--text-muted)] block uppercase text-[10px]">SAFETY SCORE:</span>
+              <span className="font-bold text-sm">{report.safety_score} / 100</span>
+            </div>
+            <div>
+              <span className="text-[var(--text-muted)] block uppercase text-[10px]">REFERENCE ID:</span>
+              <span className="truncate block">{report.document_id}</span>
+            </div>
           </div>
         </div>
 
         {/* Executive Summary */}
-        <div className="space-y-3">
-          <h2 className="font-serif text-xl text-[#0d1b2a] border-b border-[#e0dfdb] pb-2">Executive Summary</h2>
-          <p className="text-xs text-[#5c5b57] leading-relaxed">
-            {report.summary}
+        <section className="space-y-3">
+          <h2 className="font-serif text-lg font-bold text-[var(--accent-primary)] border-b border-[var(--border-subtle)] pb-1">
+            1. Executive Summary
+          </h2>
+          <p className="text-xs leading-relaxed text-[var(--text-main)] bg-[var(--bg-page)] p-4 border border-[var(--border-subtle)]">
+            {report.summary || "No executive summary available for this contract."}
           </p>
-        </div>
+        </section>
 
-        {/* Key Recommendations */}
-        <div className="space-y-3">
-          <h2 className="font-serif text-xl text-[#0d1b2a] border-b border-[#e0dfdb] pb-2">Key Recommendations</h2>
-          <ol className="list-decimal pl-5 text-xs text-[#5c5b57] space-y-2">
-            {report.recommendations.map((rec, index) => (
-              <li key={index}>{rec}</li>
-            ))}
-          </ol>
-        </div>
-
-        {/* Citations and References */}
-        <div className="space-y-3 print:break-inside-avoid">
-          <h2 className="font-serif text-xl text-[#0d1b2a] border-b border-[#e0dfdb] pb-2">Governing Citations</h2>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="py-2">Legal Source</TableHead>
-                <TableHead className="py-2">Context</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {report.citations.map((cite, index) => (
-                <TableRow key={index} className="print:hover:bg-white">
-                  <TableCell className="py-2.5 font-semibold text-[#0d1b2a]">{cite.source}</TableCell>
-                  <TableCell className="py-2.5 text-[#5c5b57]">{cite.citation}</TableCell>
+        {/* Categorized Risk Matrix Table */}
+        <section className="space-y-3">
+          <h2 className="font-serif text-lg font-bold text-[var(--accent-primary)] border-b border-[var(--border-subtle)] pb-1">
+            2. Categorized Clause & Risk Matrix
+          </h2>
+          {report.clauses.length === 0 ? (
+            <p className="text-xs text-[var(--text-muted)]">No clauses identified.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-1/4">Clause Category</TableHead>
+                  <TableHead className="w-1/6">Severity</TableHead>
+                  <TableHead>Clause Content & Rationale</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+              </TableHeader>
+              <TableBody>
+                {report.clauses.map((c, idx) => {
+                  const level = (c.risk_level?.toLowerCase() || "low") as "low" | "medium" | "high" | "neutral";
+                  return (
+                    <TableRow key={idx}>
+                      <TableCell className="font-serif font-bold text-xs">
+                        {c.type}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={level}>{c.risk_level || "LOW"}</Badge>
+                      </TableCell>
+                      <TableCell className="space-y-1">
+                        <p className="font-mono text-xs text-[var(--text-main)] bg-[var(--bg-page)] p-2 border border-[var(--border-subtle)]">
+                          {c.text}
+                        </p>
+                        {c.explanation && (
+                          <p className="text-[11px] text-[var(--text-muted)] italic">
+                            Rationale: {c.explanation}
+                          </p>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </section>
 
-        {/* Sign-off footer */}
-        <div className="border-t border-[#e0dfdb] pt-6 text-[10px] text-[#8a8985] leading-relaxed print:break-inside-avoid">
+        {/* Legal Precedents & Citations */}
+        {report.citations.length > 0 && (
+          <section className="space-y-3">
+            <h2 className="font-serif text-lg font-bold text-[var(--accent-primary)] border-b border-[var(--border-subtle)] pb-1">
+              3. Statutory Precedents & Legal Authorities
+            </h2>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-1/3">Authority / Source</TableHead>
+                  <TableHead>Statutory Citation & Relevance</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {report.citations.map((cite, idx) => (
+                  <TableRow key={idx}>
+                    <TableCell className="font-bold text-xs text-[var(--accent-primary)]">
+                      {cite.source}
+                    </TableCell>
+                    <TableCell className="text-xs text-[var(--text-main)]">
+                      {cite.citation}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </section>
+        )}
+
+        {/* Memo Disclaimer Sign-off */}
+        <section className="pt-6 border-t border-[var(--border-subtle)] text-[11px] text-[var(--text-muted)] space-y-1">
           <p>
-            <strong>Disclaimer:</strong> This automated memo assists internal review by highlighting common legal patterns and risk metrics. It does not replace independent legal advice. The user accepts full responsibility for decisions made based on this output.
+            <strong>NOTICE:</strong> This memorandum is generated as an automated first-pass screening analysis.
+            It does not constitute formal legal opinion or substitute for review by licensed legal counsel.
           </p>
-        </div>
+        </section>
       </div>
     </div>
   );
 }
-

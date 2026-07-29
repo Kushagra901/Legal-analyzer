@@ -1,12 +1,14 @@
 # add_trigger.py
 import os
+
 import psycopg2
+
 
 def load_env(env_path):
     env_vars = {}
     if not os.path.exists(env_path):
         return env_vars
-    with open(env_path, "r", encoding="utf-8") as f:
+    with open(env_path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line or line.startswith("#"):
@@ -22,12 +24,12 @@ def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     env_path = os.path.join(script_dir, ".env")
     env = load_env(env_path)
-    
+
     db_url = env.get("DATABASE_URL")
     if not db_url:
         print("Error: DATABASE_URL not found.")
         return
-        
+
     if "db.nnapoohhhibyxlebsxqj.supabase.co" in db_url:
         part1 = db_url.split("://")[1]
         auth_part = part1.split("@")[0]

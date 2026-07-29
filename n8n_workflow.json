@@ -20,7 +20,8 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "=SELECT '{{ $json.body.document_id }}' AS document_id, '{{ $json.body.filename }}' AS filename, COALESCE((SELECT status FROM public.automation_runs WHERE document_id = '{{ $json.body.document_id }}' AND workflow_name = 'Legal Analyzer Pipeline'), 'not_started') AS status;"
+        "query": "SELECT $1::text AS document_id, $2::text AS filename, COALESCE((SELECT status FROM public.automation_runs WHERE document_id = $1 AND workflow_name = 'Legal Analyzer Pipeline'), 'not_started') AS status;",
+        "queryParams": "={{ $json.body.document_id }}, {{ $json.body.filename }}"
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 1,
@@ -61,7 +62,8 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "=INSERT INTO public.automation_runs (document_id, workflow_name, status) VALUES ('{{ $json.document_id }}', 'Legal Analyzer Pipeline', 'running') ON CONFLICT (document_id, workflow_name) DO UPDATE SET status = 'running' RETURNING document_id, status, '{{ $json.filename }}' AS filename;"
+        "query": "INSERT INTO public.automation_runs (document_id, workflow_name, status) VALUES ($1, 'Legal Analyzer Pipeline', 'running') ON CONFLICT (document_id, workflow_name) DO UPDATE SET status = 'running' RETURNING document_id, status, $2::text AS filename;",
+        "queryParams": "={{ $json.document_id }}, {{ $json.filename }}"
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 1,
@@ -238,7 +240,8 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "=UPDATE public.automation_runs SET status = 'completed' WHERE document_id = '{{ $json.document_id }}' AND workflow_name = 'Legal Analyzer Pipeline';\nSELECT d.id AS document_id, d.filename, d.safety_score, r.status FROM public.documents d JOIN public.automation_runs r ON d.id = r.document_id WHERE d.id = '{{ $json.document_id }}' AND r.workflow_name = 'Legal Analyzer Pipeline';"
+        "query": "UPDATE public.automation_runs SET status = 'completed' WHERE document_id = $1 AND workflow_name = 'Legal Analyzer Pipeline';\nSELECT d.id AS document_id, d.filename, d.safety_score, r.status FROM public.documents d JOIN public.automation_runs r ON d.id = r.document_id WHERE d.id = $1 AND r.workflow_name = 'Legal Analyzer Pipeline';",
+        "queryParams": "={{ $json.document_id }}"
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 1,
@@ -336,7 +339,8 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "=UPDATE public.automation_runs SET retry_count = retry_count + 1, status = 'failed_retry' WHERE document_id = '{{ $node[\"Webhook (Document Uploaded)\"].json.body.document_id }}' AND workflow_name = 'Legal Analyzer Pipeline';\nSELECT d.id AS document_id, d.filename, r.status, r.retry_count FROM public.documents d JOIN public.automation_runs r ON d.id = r.document_id WHERE d.id = '{{ $node[\"Webhook (Document Uploaded)\"].json.body.document_id }}' AND r.workflow_name = 'Legal Analyzer Pipeline';"
+        "query": "UPDATE public.automation_runs SET retry_count = retry_count + 1, status = 'failed_retry' WHERE document_id = $1 AND workflow_name = 'Legal Analyzer Pipeline';\nSELECT d.id AS document_id, d.filename, r.status, r.retry_count FROM public.documents d JOIN public.automation_runs r ON d.id = r.document_id WHERE d.id = $1 AND r.workflow_name = 'Legal Analyzer Pipeline';",
+        "queryParams": "={{ $node[\"Webhook (Document Uploaded)\"].json.body.document_id }}"
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 1,
@@ -371,7 +375,8 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "=UPDATE public.automation_runs SET status = 'failed' WHERE document_id = '{{ $node[\"Webhook (Document Uploaded)\"].json.body.document_id }}' AND workflow_name = 'Legal Analyzer Pipeline';\nSELECT d.id AS document_id, d.filename, r.status FROM public.documents d JOIN public.automation_runs r ON d.id = r.document_id WHERE d.id = '{{ $node[\"Webhook (Document Uploaded)\"].json.body.document_id }}' AND r.workflow_name = 'Legal Analyzer Pipeline';"
+        "query": "UPDATE public.automation_runs SET status = 'failed' WHERE document_id = $1 AND workflow_name = 'Legal Analyzer Pipeline';\nSELECT d.id AS document_id, d.filename, r.status FROM public.documents d JOIN public.automation_runs r ON d.id = r.document_id WHERE d.id = $1 AND r.workflow_name = 'Legal Analyzer Pipeline';",
+        "queryParams": "={{ $node[\"Webhook (Document Uploaded)\"].json.body.document_id }}"
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 1,

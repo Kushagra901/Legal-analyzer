@@ -3,8 +3,10 @@
 Storage Service.
 Handles interactions with Supabase Storage for uploading and retrieving document files.
 """
-from supabase import create_client, Client
+from supabase import Client, create_client
+
 from app.core.config import settings
+
 
 class StorageService:
     """
@@ -16,7 +18,7 @@ class StorageService:
         Initializes the Supabase client and checks/creates the storage bucket.
         """
         self.bucket_name = "documents"
-        
+
         # Don't try to initialize if keys are missing (useful for mock tests)
         if not settings.SUPABASE_URL or not settings.SUPABASE_SERVICE_ROLE_KEY:
             self.client = None

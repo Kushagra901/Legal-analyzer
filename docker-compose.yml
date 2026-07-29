@@ -1,6 +1,17 @@
 version: '3.8'
 
 services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: legal_analyzer_backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+
   n8n:
     image: n8nio/n8n:latest
     container_name: n8n_local
@@ -17,4 +28,3 @@ services:
 
 volumes:
   n8n_data:
-    external: true

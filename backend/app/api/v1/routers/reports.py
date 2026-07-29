@@ -3,22 +3,24 @@ Reports router.
 Handles retrieval and generation requests for legal memorandum reports.
 """
 
-import uuid
 import json
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+
+from app.core.auth import get_accessible_document, get_current_user
 from app.core.database import get_db
-from app.models import Document, LegalReference, Clause, RiskFlag, ComplianceCheck, AuditLog, User
-from app.core.auth import get_current_user, get_accessible_document
+from app.models import AuditLog, Clause, ComplianceCheck, LegalReference, RiskFlag, User
+from app.models.schemas import CitationResponse, ReportResponse
 
 router = APIRouter()
 
-@router.get("/{document_id}")
+@router.get("/{document_id}", response_model=ReportResponse)
 def get_report(
     document_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
-) -> dict:
+) -> ReportResponse:
     """
     Retrieve generated memorandum audit report by document ID.
     """
@@ -32,10 +34,10 @@ def get_report(
     # Load citations
     citations_db = db.query(LegalReference).filter(LegalReference.document_id == doc.id).all()
     citations = [
-        {
-            "source": cit.source,
-            "citation": cit.citation
-        }
+        CitationResponse(
+            source=cit.source,
+            citation=cit.citation
+        )
         for cit in citations_db
     ]
 
@@ -76,16 +78,16 @@ def get_report(
         db.rollback()
         print(f"Error writing report audit log: {e}")
 
-    return {
-        "document_id": str(doc.id),
-        "filename": doc.filename,
-        "uploaded_at": doc.uploaded_at.isoformat() if doc.uploaded_at else None,
-        "report_url": f"/reports/{doc.id}.pdf",
-        "safety_score": doc.safety_score if doc.safety_score is not None else 100,
-        "risk_level": doc.risk_level if doc.risk_level is not None else "LOW",
-        "summary": doc.summary or "Analysis complete.",
-        "recommendations": recommendations,
-        "citations": citations
-    }
+    return ReportResponse(
+        document_id=str(doc.id),
+        filename=doc.filename,
+        uploaded_at=doc.uploaded_at.isoformat() if doc.uploaded_at else None,
+        report_url=f"/reports/{doc.id}.pdf",
+        safety_score=doc.safety_score if doc.safety_score is not None else 100,
+        risk_level=doc.risk_level if doc.risk_level is not None else "LOW",
+        summary=doc.summary or "Analysis complete.",
+        recommendations=recommendations,
+        citations=citations
+    )
 
 

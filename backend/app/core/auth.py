@@ -5,14 +5,15 @@ Supports X-Internal-Token for internal service bypass.
 """
 
 import uuid
-from fastapi import Depends, HTTPException, status, Request
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
+from fastapi import Depends, HTTPException, Request, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
-from supabase import create_client, Client
+from supabase import Client, create_client
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.models import User, Organization, Document
+from app.models import Document, Organization, User
 
 # Disable auto_error so we can manually handle absent user-JWTs when X-Internal-Token is provided
 security_scheme = HTTPBearer(auto_error=False)
@@ -116,14 +117,15 @@ def get_accessible_document(
     db: Session,
     document_uuid: uuid.UUID | str,
     current_user: User
-) -> Document | None:
+) -> Document:
     """
     Resolves document access control for a given user.
     - Administrators (including internal services running under admin bypass)
       have full access to any document.
-    - Regular users are restricted to documents belonging to users in their organization.
-    Returns the Document instance if accessible, otherwise None.
-    Raises HTTPException(400) if the document_uuid format is invalid.
+    - Regular users are strictly restricted to documents where document.user_id == current_user.id.
+    Raises HTTPException(404) if document does not exist.
+    Raises HTTPException(403) if regular user tries to access another user's document.
+    Returns the Document instance if authorized.
     """
     if isinstance(document_uuid, str):
         try:
@@ -136,10 +138,17 @@ def get_accessible_document(
     else:
         doc_uuid = document_uuid
 
-    if current_user.role == "admin":
-        return db.query(Document).filter(Document.id == doc_uuid).first()
-    else:
-        return db.query(Document).join(User).filter(
-            Document.id == doc_uuid,
-            User.org_id == current_user.org_id
-        ).first()
+    doc = db.query(Document).filter(Document.id == doc_uuid).first()
+    if not doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found."
+        )
+
+    if current_user.role != "admin" and doc.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied. You do not have permission to access this document."
+        )
+
+    return doc
