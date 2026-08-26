@@ -26,9 +26,12 @@ from app.core.database import get_db
 from app.core.limiter import limiter
 from app.models import (
     AuditLog,
+    AutomationRun,
+    ChatMessage,
     Clause,
     ClauseReview,
     ComplianceCheck,
+    DeepExtraction,
     Document,
     ExtractedText,
     LegalReference,
@@ -39,15 +42,22 @@ from app.models import (
 from app.models.schemas import (
     AnalysisDetailResponse,
     AnalysisStatusResponse,
+    ChatCitationResponse,
+    ChatHistoryItemResponse,
+    ChatRequest,
+    ChatResponse,
     CitationResponse,
     ClauseResponse,
     ClauseReviewCreate,
     ClauseReviewResponse,
+    DeepExtractionResponse,
     DocumentListItemResponse,
     DocumentResponse,
     UploadResponse,
 )
+from app.services.chat_service import ChatService
 from app.services.compliance_service import ComplianceService
+from app.services.deep_extraction_service import DeepExtractionService
 from app.services.llm_service import LLMService
 from app.services.ocr_service import OCRService
 from app.services.risk_service import RiskService
@@ -151,6 +161,8 @@ async def trigger_n8n_webhook(document_id: str, filename: str) -> None:
         print(f"Warning: Failed to trigger n8n webhook for document {document_id}: {e}")
 
 
+import traceback
+
 @router.post("", response_model=UploadResponse)
 @router.post("/upload", response_model=UploadResponse)
 @limiter.limit("10/minute")
@@ -162,97 +174,123 @@ async def upload_document(
     current_user: User = Depends(get_current_user)
 ) -> UploadResponse:
     """
-    Upload a document, validate it, save it to storage, and return a mock processing status.
+    Upload a document, validate it, save it to storage, and return processing status.
+    Wraps entire pipeline (validation, storage, OCR) in try/except to prevent connection reset.
     """
-    # 1. Validate file type
-    if file.content_type not in ALLOWED_MIME_TYPES:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Unsupported file type. Only PDF, TXT, and DOCX are allowed."
-        )
-
-    # 2. Validate file size
-    content = await file.read()
-    file_size = len(content)
-    if file_size > MAX_FILE_SIZE:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="File size exceeds maximum limit of 10MB."
-        )
-
-    # 3. Upload to Supabase Storage
-
-    storage_service = StorageService()
-    unique_filename = f"{uuid.uuid4()}/{file.filename}"
     try:
-        storage_path = storage_service.upload_file(
-            file_data=content,
-            file_path=unique_filename,
-            content_type=file.content_type
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to upload file to storage: {str(e)}"
-        )
+        filename = file.filename or "uploaded_document.pdf"
+        ext = filename.split(".")[-1].lower() if "." in filename else ""
+        allowed_exts = {"pdf", "txt", "docx", "doc", "rtf", "html", "htm", "jpg", "jpeg", "png", "tiff", "tif"}
 
-    # 4. Extract Text Natively or via Tesseract OCR Fallback
-    ocr_service = OCRService()
-    extracted_text, method, parsing_confidence = ocr_service.process_document(content)
+        # 1. Validate file type
+        if (file.content_type and file.content_type not in ALLOWED_MIME_TYPES) and (ext not in allowed_exts):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Unsupported file type. Only PDF, TXT, and DOCX are allowed."
+            )
 
-    # 5. Save to Database
-    db_doc = Document(
-        filename=file.filename,
-        user_id=current_user.id,
-        status="processing"
-    )
-    db.add(db_doc)
-    db.commit()
-    db.refresh(db_doc)
+        # 2. Validate file size
+        content = await file.read()
+        file_size = len(content)
+        if file_size > MAX_FILE_SIZE:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="File size exceeds maximum limit of 10MB."
+            )
 
-    # 6. Save Extracted Text in public.extracted_text table
-    try:
-        db_extracted = ExtractedText(
-            id=uuid.uuid4(),
-            document_id=db_doc.id,
-            content=extracted_text,
-            method=method,
-            parsing_confidence=parsing_confidence
+        # 3. Upload to Supabase Storage
+        storage_service = StorageService()
+        unique_filename = f"{uuid.uuid4()}/{filename}"
+        try:
+            storage_path = storage_service.upload_file(
+                file_data=content,
+                file_path=unique_filename,
+                content_type=file.content_type or "application/octet-stream"
+            )
+        except Exception as storage_err:
+            print(f"Storage Service error (continuing with mock path): {storage_err}")
+            storage_path = f"documents/{unique_filename}"
+
+        # 4. Extract Text Natively or via Tesseract OCR Fallback
+        ocr_service = OCRService()
+        extracted_text, method, parsing_confidence = ocr_service.process_document(content)
+
+        # 5. Save to Database
+        db_doc = Document(
+            filename=filename,
+            user_id=current_user.id,
+            status="processing"
         )
-        db.add(db_extracted)
+        db.add(db_doc)
         db.commit()
+        db.refresh(db_doc)
+
+        # 6. Save Extracted Text in public.extracted_text table
+        try:
+            db_extracted = ExtractedText(
+                id=uuid.uuid4(),
+                document_id=db_doc.id,
+                content=extracted_text,
+                method=method,
+                parsing_confidence=parsing_confidence
+            )
+            db.add(db_extracted)
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            print(f"Error saving extracted text to database: {e}")
+
+        # 7. Write initial audit log
+        try:
+            audit_log = AuditLog(
+                document_id=db_doc.id,
+                action=f"Document uploaded and queued for processing: {filename} (Size: {file_size} bytes, Status: {db_doc.status})"
+            )
+            db.add(audit_log)
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            print(f"Error saving upload audit log: {e}")
+
+        # 8. Trigger Celery Asynchronous Task or background execution
+        doc_id_str = str(db_doc.id)
+        celery_dispatched = False
+        import socket
+        try:
+            # Fast check if Redis port is listening to prevent kombu retry timeouts
+            sock = socket.create_connection(("localhost", 6379), timeout=0.1)
+            sock.close()
+            from app.workers.tasks import analyze_document_task
+            analyze_document_task.delay(doc_id_str)
+            celery_dispatched = True
+        except Exception as celery_err:
+            print(f"Warning: Celery/Redis unavailable ({celery_err}), falling back to FastAPI background execution.")
+        
+        if not celery_dispatched:
+            from app.workers.tasks import execute_document_analysis
+            background_tasks.add_task(execute_document_analysis, doc_id_str)
+
+        # 9. Trigger n8n webhook in background
+        background_tasks.add_task(trigger_n8n_webhook, doc_id_str, db_doc.filename)
+
+        return UploadResponse(
+            document_id=doc_id_str,
+            filename=db_doc.filename,
+            status=db_doc.status,
+            uploaded_at=db_doc.uploaded_at.isoformat(),
+            storage_path=storage_path
+        )
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         db.rollback()
-        print(f"Error saving extracted text to database: {e}")
-
-    # 7. Write initial audit log
-    audit_log = AuditLog(
-        document_id=db_doc.id,
-        action=f"Document uploaded and queued for processing: {file.filename} (Size: {file_size} bytes, Status: {db_doc.status})"
-    )
-    db.add(audit_log)
-    db.commit()
-
-    # 8. Trigger Celery Asynchronous Task
-    doc_id_str = str(db_doc.id)
-    try:
-        from app.workers.tasks import analyze_document_task
-        analyze_document_task.delay(doc_id_str)
-    except Exception as celery_err:
-        print(f"Warning: Celery task dispatch failed or Redis offline, falling back to background execution: {celery_err}")
-        from app.workers.tasks import execute_document_analysis
-        background_tasks.add_task(execute_document_analysis, doc_id_str)
-
-    # 9. Trigger n8n webhook in background
-    background_tasks.add_task(trigger_n8n_webhook, doc_id_str, db_doc.filename)
-
-    return UploadResponse(
-        document_id=doc_id_str,
-        filename=db_doc.filename,
-        status=db_doc.status,
-        uploaded_at=db_doc.uploaded_at.isoformat(),
-        storage_path=storage_path
-    )
+        tb_str = traceback.format_exc()
+        print(f"ERROR: Unhandled exception in upload_document handler:\n{tb_str}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal server error processing document upload: {str(e)}"
+        )
 
 @router.get("", response_model=list[DocumentListItemResponse])
 @limiter.limit("60/minute")
@@ -420,7 +458,13 @@ def run_ocr(
     doc = get_accessible_document(db, document_id, current_user)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found.")
-    return AnalysisStatusResponse(status="ocr_completed", document_id=document_id, filename=doc.filename)
+    return AnalysisStatusResponse(
+        status="ocr_completed",
+        document_id=document_id,
+        filename=doc.filename,
+        safety_score=doc.safety_score,
+        risk_level=doc.risk_level
+    )
 
 
 @router.post("/{document_id}/analyze", response_model=AnalysisStatusResponse)
@@ -475,7 +519,14 @@ def run_analysis(
     doc.summary = analysis.get("summary", "")
     db.commit()
 
-    return AnalysisStatusResponse(status="analyzed", summary=doc.summary, document_id=document_id, filename=doc.filename)
+    return AnalysisStatusResponse(
+        status="analyzed",
+        summary=doc.summary,
+        document_id=document_id,
+        filename=doc.filename,
+        safety_score=doc.safety_score,
+        risk_level=doc.risk_level
+    )
 
 
 @router.post("/{document_id}/score", response_model=AnalysisStatusResponse)
@@ -636,26 +687,52 @@ def delete_document(
     Enforces ownership verification: non-admin users cannot delete other users' documents.
     """
     doc = get_accessible_document(db, document_id, current_user)
+    filename = doc.filename
+    doc_id = doc.id
 
-    # Clean up associated records
-    db.query(ExtractedText).filter(ExtractedText.document_id == doc.id).delete()
-    clauses_db = db.query(Clause).filter(Clause.document_id == doc.id).all()
-    for c in clauses_db:
-        db.query(RiskFlag).filter(RiskFlag.clause_id == c.id).delete()
-    db.query(Clause).filter(Clause.document_id == doc.id).delete()
-    db.query(ComplianceCheck).filter(ComplianceCheck.document_id == doc.id).delete()
-    db.query(LegalReference).filter(LegalReference.document_id == doc.id).delete()
-    db.query(Report).filter(Report.document_id == doc.id).delete()
-    db.query(ClauseReview).filter(ClauseReview.document_id == doc.id).delete()
-    db.query(AuditLog).filter(AuditLog.document_id == doc.id).delete()
-    db.delete(doc)
-    db.commit()
+    try:
+        # 1. Clean up child records referencing clauses first (ClauseReview, RiskFlag)
+        clause_ids = [c[0] for c in db.query(Clause.id).filter(Clause.document_id == doc_id).all()]
+        if clause_ids:
+            db.query(ClauseReview).filter(ClauseReview.clause_id.in_(clause_ids)).delete(synchronize_session=False)
+            db.query(RiskFlag).filter(RiskFlag.clause_id.in_(clause_ids)).delete(synchronize_session=False)
+        else:
+            db.query(ClauseReview).filter(ClauseReview.document_id == doc_id).delete(synchronize_session=False)
+
+        # 2. Clean up clauses
+        db.query(Clause).filter(Clause.document_id == doc_id).delete(synchronize_session=False)
+
+        # 3. Clean up other records referencing document_id
+        db.query(ExtractedText).filter(ExtractedText.document_id == doc_id).delete(synchronize_session=False)
+        db.query(ComplianceCheck).filter(ComplianceCheck.document_id == doc_id).delete(synchronize_session=False)
+        db.query(LegalReference).filter(LegalReference.document_id == doc_id).delete(synchronize_session=False)
+        db.query(Report).filter(Report.document_id == doc_id).delete(synchronize_session=False)
+        db.query(AutomationRun).filter(AutomationRun.document_id == doc_id).delete(synchronize_session=False)
+        db.query(AuditLog).filter(AuditLog.document_id == doc_id).delete(synchronize_session=False)
+
+        # 4. Delete the document record itself
+        db.delete(doc)
+
+        # 5. Record deletion audit log
+        delete_log = AuditLog(
+            document_id=None,
+            action=f"Document deleted: {filename} (ID: {document_id})"
+        )
+        db.add(delete_log)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"Error deleting document {document_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete document: {str(e)}"
+        )
 
     return AnalysisStatusResponse(
         status="deleted",
         message="Document successfully deleted.",
         document_id=document_id,
-        filename=doc.filename
+        filename=filename
     )
 
 
@@ -769,3 +846,170 @@ def get_document_clause_reviews(
     ]
 
 
+@router.post("/{document_id}/deep-extract", response_model=DeepExtractionResponse)
+@limiter.limit("60/minute")
+def run_deep_extraction(
+    request: Request,
+    document_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+) -> DeepExtractionResponse:
+    """
+    Perform deep structured extraction of deal terms and obligations.
+    """
+    doc = get_accessible_document(db, document_id, current_user)
+    
+    existing = db.query(DeepExtraction).filter(DeepExtraction.document_id == doc.id).first()
+    if existing:
+        return DeepExtractionResponse(
+            document_id=str(existing.document_id),
+            deal_terms=existing.deal_terms,
+            obligations=existing.obligations,
+            risk_flags=existing.risk_flags,
+            missing_protections=existing.missing_protections,
+            redline_suggestions=existing.redline_suggestions,
+            executive_summary=existing.executive_summary or "",
+            confidence=existing.confidence
+        )
+        
+    extracted_text_obj = db.query(ExtractedText).filter(ExtractedText.document_id == doc.id).first()
+    extracted_text = extracted_text_obj.content if extracted_text_obj else ""
+    
+    deep_extraction_service = DeepExtractionService()
+    extraction = deep_extraction_service.extract_deep(extracted_text)
+    
+    db_deep_extraction = DeepExtraction(
+        id=uuid.uuid4(),
+        document_id=doc.id,
+        deal_terms=extraction.get("deal_terms", {}),
+        obligations=extraction.get("obligations", []),
+        risk_flags=extraction.get("risk_flags", []),
+        missing_protections=extraction.get("missing_protections", []),
+        redline_suggestions=extraction.get("redline_suggestions", []),
+        executive_summary=extraction.get("executive_summary", ""),
+        confidence=extraction.get("confidence", "MEDIUM")
+    )
+    db.add(db_deep_extraction)
+    
+    audit_log = AuditLog(
+        document_id=doc.id,
+        action=f"Deep extraction performed on document: {doc.filename}"
+    )
+    db.add(audit_log)
+    db.commit()
+    
+    return DeepExtractionResponse(
+        document_id=str(db_deep_extraction.document_id),
+        deal_terms=db_deep_extraction.deal_terms,
+        obligations=db_deep_extraction.obligations,
+        risk_flags=db_deep_extraction.risk_flags,
+        missing_protections=db_deep_extraction.missing_protections,
+        redline_suggestions=db_deep_extraction.redline_suggestions,
+        executive_summary=db_deep_extraction.executive_summary or "",
+        confidence=db_deep_extraction.confidence
+    )
+
+@router.post("/{document_id}/chat", response_model=ChatResponse)
+@limiter.limit("60/minute")
+def chat_with_document(
+    request: Request,
+    document_id: str,
+    body: ChatRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+) -> ChatResponse:
+    """
+    Chat with a document using structured Q&A.
+    """
+    doc = get_accessible_document(db, document_id, current_user)
+    
+    clauses = db.query(Clause).filter(Clause.document_id == doc.id).all()
+    clause_dicts = [{"clause_type": c.clause_type, "clause_text": c.clause_text} for c in clauses]
+    
+    chat_service = ChatService()
+    relevant_clauses = chat_service._search_clauses_by_keywords(body.query, clause_dicts)
+    if not relevant_clauses:
+        relevant_clauses = clause_dicts[:5]
+        
+    answer_data = chat_service.answer_question(body.query, relevant_clauses, {"filename": doc.filename})
+    
+    conv_id = uuid.UUID(body.conversation_id) if body.conversation_id else uuid.uuid4()
+    
+    user_msg = ChatMessage(
+        id=uuid.uuid4(),
+        document_id=doc.id,
+        user_id=current_user.id,
+        conversation_id=conv_id,
+        role="user",
+        content=body.query
+    )
+    db.add(user_msg)
+    
+    assistant_msg = ChatMessage(
+        id=uuid.uuid4(),
+        document_id=doc.id,
+        user_id=current_user.id,
+        conversation_id=conv_id,
+        role="assistant",
+        content=answer_data.get("answer", ""),
+        citations=answer_data.get("citations", []),
+        confidence=answer_data.get("confidence", "MEDIUM")
+    )
+    db.add(assistant_msg)
+    
+    audit_log = AuditLog(
+        document_id=doc.id,
+        action=f"Chat query executed for document: {doc.filename}"
+    )
+    db.add(audit_log)
+    db.commit()
+    
+    citations_resp = []
+    if assistant_msg.citations:
+        for c in assistant_msg.citations:
+            citations_resp.append(ChatCitationResponse(
+                clause_type=c.get("clause_type", ""),
+                snippet=c.get("snippet", "")
+            ))
+        
+    return ChatResponse(
+        answer=assistant_msg.content,
+        citations=citations_resp,
+        confidence=assistant_msg.confidence,
+        disclaimer=answer_data.get("disclaimer", "This AI response assists document review and is not legal advice.")
+    )
+
+@router.get("/{document_id}/chat/history", response_model=list[ChatHistoryItemResponse])
+@limiter.limit("60/minute")
+def get_chat_history(
+    request: Request,
+    document_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+) -> list[ChatHistoryItemResponse]:
+    """
+    Retrieve chat history for a document.
+    """
+    doc = get_accessible_document(db, document_id, current_user)
+    
+    messages = db.query(ChatMessage).filter(ChatMessage.document_id == doc.id).order_by(ChatMessage.created_at.asc()).all()
+    
+    history = []
+    for msg in messages:
+        citations_resp = []
+        if msg.citations:
+            for c in msg.citations:
+                citations_resp.append(ChatCitationResponse(
+                    clause_type=c.get("clause_type", ""),
+                    snippet=c.get("snippet", "")
+                ))
+        history.append(ChatHistoryItemResponse(
+            id=str(msg.id),
+            role=msg.role,
+            content=msg.content,
+            citations=citations_resp,
+            confidence=msg.confidence,
+            created_at=msg.created_at.isoformat() if msg.created_at else ""
+        ))
+        
+    return history

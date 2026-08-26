@@ -246,3 +246,38 @@ class ClauseReview(Base):
     reviewed_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
+class ChatMessage(Base):
+    """
+    SQLAlchemy model representing the chat_messages table.
+    Stores document-scoped conversational Q&A messages.
+    """
+    __tablename__ = "chat_messages"
+
+    id = Column(GUID, primary_key=True, default=uuid.uuid4)
+    document_id = Column(GUID, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(GUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    conversation_id = Column(GUID, nullable=False, default=uuid.uuid4)
+    role: str = Column(String(20), nullable=False)
+    content: str = Column(Text, nullable=False)
+    citations = Column(JSON, default=list)
+    confidence: str = Column(String(10), default="MEDIUM")
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class DeepExtraction(Base):
+    """
+    SQLAlchemy model representing the deep_extractions table.
+    Stores structured deep extraction results for a document.
+    """
+    __tablename__ = "deep_extractions"
+
+    id = Column(GUID, primary_key=True, default=uuid.uuid4)
+    document_id = Column(GUID, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, unique=True)
+    deal_terms = Column(JSON, default=dict)
+    obligations = Column(JSON, default=list)
+    risk_flags = Column(JSON, default=list)
+    missing_protections = Column(JSON, default=list)
+    redline_suggestions = Column(JSON, default=list)
+    executive_summary: str = Column(Text, nullable=True)
+    confidence: str = Column(String(10), default="MEDIUM")
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

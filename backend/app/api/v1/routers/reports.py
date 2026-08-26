@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.auth import get_accessible_document, get_current_user
 from app.core.database import get_db
 from app.models import AuditLog, Clause, ComplianceCheck, LegalReference, RiskFlag, User
-from app.models.schemas import CitationResponse, ReportResponse
+from app.models.schemas import CitationResponse, ClauseResponse, ReportResponse
 
 router = APIRouter()
 
@@ -41,16 +41,29 @@ def get_report(
         for cit in citations_db
     ]
 
-    # Load clauses to build recommendations
+    # Load clauses to build response and recommendations
     clauses_db = db.query(Clause).filter(Clause.document_id == doc.id).all()
+    clauses = []
     recommendations = []
+
     for c_db in clauses_db:
         flags = db.query(RiskFlag).filter(RiskFlag.clause_id == c_db.id).all()
-        if flags:
-            severity = flags[0].severity
-            explanation = flags[0].explanation
-            if severity in ("MEDIUM", "HIGH"):
-                recommendations.append(f"Review the {c_db.clause_type} clause: {explanation}")
+        severity = flags[0].severity if flags else "LOW"
+        explanation = flags[0].explanation if flags else ""
+
+        if severity in ("MEDIUM", "HIGH") and explanation:
+            recommendations.append(f"Review the {c_db.clause_type} clause: {explanation}")
+
+        clauses.append(
+            ClauseResponse(
+                id=str(c_db.id),
+                type=c_db.clause_type,
+                text=c_db.clause_text,
+                risk_level=severity,
+                severity=severity,
+                explanation=explanation
+            )
+        )
 
     # Load compliance violations
     compliance_db = db.query(ComplianceCheck).filter(ComplianceCheck.document_id == doc.id).first()
@@ -87,6 +100,7 @@ def get_report(
         risk_level=doc.risk_level if doc.risk_level is not None else "LOW",
         summary=doc.summary or "Analysis complete.",
         recommendations=recommendations,
+        clauses=clauses,
         citations=citations
     )
 

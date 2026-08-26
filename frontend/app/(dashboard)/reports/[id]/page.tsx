@@ -13,16 +13,17 @@ interface ReportDetail {
   summary: string;
   safety_score: number;
   risk_level: string;
-  clauses: Array<{
+  clauses?: Array<{
     type: string;
     text: string;
     risk_level?: string;
     explanation?: string;
   }>;
-  citations: Array<{
+  citations?: Array<{
     source: string;
     citation: string;
   }>;
+  recommendations?: string[];
   compliance_checks?: Array<{
     rule_set: string;
     violations: string[];
@@ -89,6 +90,8 @@ export default function ReportPage({
     day: "numeric",
   });
   const riskLevel = (report.risk_level?.toLowerCase() || "neutral") as "low" | "medium" | "high" | "neutral";
+  const clauses = report.clauses || [];
+  const citations = report.citations || [];
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
@@ -157,7 +160,7 @@ export default function ReportPage({
           <h2 className="font-serif text-lg font-bold text-[var(--accent-primary)] border-b border-[var(--border-subtle)] pb-1">
             2. Categorized Clause & Risk Matrix
           </h2>
-          {report.clauses.length === 0 ? (
+          {clauses.length === 0 ? (
             <p className="text-xs text-[var(--text-muted)]">No clauses identified.</p>
           ) : (
             <Table>
@@ -169,7 +172,7 @@ export default function ReportPage({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {report.clauses.map((c, idx) => {
+                {clauses.map((c, idx) => {
                   const level = (c.risk_level?.toLowerCase() || "low") as "low" | "medium" | "high" | "neutral";
                   return (
                     <TableRow key={idx}>
@@ -198,7 +201,7 @@ export default function ReportPage({
         </section>
 
         {/* Legal Precedents & Citations */}
-        {report.citations.length > 0 && (
+        {citations.length > 0 && (
           <section className="space-y-3">
             <h2 className="font-serif text-lg font-bold text-[var(--accent-primary)] border-b border-[var(--border-subtle)] pb-1">
               3. Statutory Precedents & Legal Authorities
@@ -211,7 +214,7 @@ export default function ReportPage({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {report.citations.map((cite, idx) => (
+                {citations.map((cite, idx) => (
                   <TableRow key={idx}>
                     <TableCell className="font-bold text-xs text-[var(--accent-primary)]">
                       {cite.source}

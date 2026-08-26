@@ -9,6 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { ClauseHighlight } from "@/components/documents/clause-highlight";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DocumentChatDrawer } from "@/components/documents/document-chat-drawer";
+import { DealTermsMatrix } from "@/components/documents/deal-terms-matrix";
+import { RedlineWorkbench } from "@/components/documents/redline-workbench";
 
 interface ClauseItem {
   type: string;
@@ -60,6 +63,7 @@ export default function DocumentDetailPage({
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"analysis" | "dealTerms" | "redlines" | "chat">("analysis");
 
   useEffect(() => {
     async function loadDocument() {
@@ -285,8 +289,52 @@ export default function DocumentDetailPage({
         </div>
       )}
 
-      {/* Interactive Split-Pane Results View */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      {/* Tabs Navigation */}
+      <div className="flex border-b border-[#e0dfdb] mb-6">
+        <button
+          onClick={() => setActiveTab("analysis")}
+          className={`px-4 py-2 text-sm transition-colors ${
+            activeTab === "analysis"
+              ? "border-b-2 border-[#0d1b2a] font-bold text-[#0d1b2a]"
+              : "text-[#8a8985] hover:text-[#0d1b2a]"
+          }`}
+        >
+          Analysis
+        </button>
+        <button
+          onClick={() => setActiveTab("dealTerms")}
+          className={`px-4 py-2 text-sm transition-colors ${
+            activeTab === "dealTerms"
+              ? "border-b-2 border-[#0d1b2a] font-bold text-[#0d1b2a]"
+              : "text-[#8a8985] hover:text-[#0d1b2a]"
+          }`}
+        >
+          Deal Terms
+        </button>
+        <button
+          onClick={() => setActiveTab("redlines")}
+          className={`px-4 py-2 text-sm transition-colors ${
+            activeTab === "redlines"
+              ? "border-b-2 border-[#0d1b2a] font-bold text-[#0d1b2a]"
+              : "text-[#8a8985] hover:text-[#0d1b2a]"
+          }`}
+        >
+          Redlines
+        </button>
+        <button
+          onClick={() => setActiveTab("chat")}
+          className={`px-4 py-2 text-sm transition-colors ${
+            activeTab === "chat"
+              ? "border-b-2 border-[#0d1b2a] font-bold text-[#0d1b2a]"
+              : "text-[#8a8985] hover:text-[#0d1b2a]"
+          }`}
+        >
+          Chat
+        </button>
+      </div>
+
+      {activeTab === "analysis" && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         {/* Left Pane (Pane 1): Document Viewer / Original Text */}
         <Card className="h-[750px] flex flex-col">
           <CardHeader className="py-3 px-4 flex flex-row items-center justify-between">
@@ -436,6 +484,21 @@ export default function DocumentDetailPage({
           )}
         </div>
       </div>
+      )}
+
+      {activeTab === "dealTerms" && (
+        <DealTermsMatrix documentId={docId} />
+      )}
+
+      {activeTab === "redlines" && (
+        <RedlineWorkbench documentId={docId} />
+      )}
+
+      {activeTab === "chat" && (
+        <div className="h-[750px]">
+          <DocumentChatDrawer documentId={docId} />
+        </div>
+      )}
     </div>
   );
 }

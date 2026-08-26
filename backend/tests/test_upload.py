@@ -26,6 +26,7 @@ from app.models import (
     Clause,
     ComplianceCheck,
     Document,
+    ExtractedText,
     LegalReference,
     Organization,
     RiskFlag,
@@ -85,16 +86,22 @@ def override_get_current_user(request: Request, db: Session = Depends(override_g
         db.refresh(user)
     return user
 
-app.dependency_overrides[get_db] = override_get_db
-app.dependency_overrides[get_current_user] = override_get_current_user
 client = TestClient(app)
 
 @pytest.fixture(autouse=True)
 def clean_db():
-    """Fixture to truncate database tables before every test."""
+    """Fixture to truncate database tables and set dependency overrides before every test."""
+    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_current_user] = override_get_current_user
+
     db = TestingSessionLocal()
-    # Clear tables
+    # Clear all tables to prevent cross-test data pollution
     db.query(AuditLog).delete()
+    db.query(LegalReference).delete()
+    db.query(ComplianceCheck).delete()
+    db.query(RiskFlag).delete()
+    db.query(Clause).delete()
+    db.query(ExtractedText).delete()
     db.query(Document).delete()
     db.commit()
     db.close()

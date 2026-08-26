@@ -6,6 +6,7 @@
         "httpMethod": "POST",
         "path": "document-uploaded",
         "responseMode": "onReceived",
+        "isFullPath": true,
         "options": {}
       },
       "type": "n8n-nodes-base.webhook",
@@ -15,13 +16,14 @@
         300
       ],
       "id": "webhook-trigger",
-      "name": "Webhook (Document Uploaded)"
+      "name": "Webhook (Document Uploaded)",
+      "webhookId": "document-uploaded"
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT $1::text AS document_id, $2::text AS filename, COALESCE((SELECT status FROM public.automation_runs WHERE document_id = $1 AND workflow_name = 'Legal Analyzer Pipeline'), 'not_started') AS status;",
-        "queryParams": "={{ $json.body.document_id }}, {{ $json.body.filename }}"
+        "query": "SELECT '{{ $json.body.document_id }}'::text AS document_id, '{{ $json.body.filename }}'::text AS filename, COALESCE((SELECT status FROM public.automation_runs WHERE document_id = '{{ $json.body.document_id }}'::uuid AND workflow_name = 'Legal Analyzer Pipeline'), 'not_started') AS status;",
+        "additionalFields": {}
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 1,
@@ -30,7 +32,13 @@
         300
       ],
       "id": "check-idempotency",
-      "name": "Postgres (Check Idempotency)"
+      "name": "Postgres (Check Idempotency)",
+      "credentials": {
+        "postgres": {
+          "id": "L8j2AWADDcZcwsa8",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {
@@ -62,8 +70,8 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO public.automation_runs (document_id, workflow_name, status) VALUES ($1, 'Legal Analyzer Pipeline', 'running') ON CONFLICT (document_id, workflow_name) DO UPDATE SET status = 'running' RETURNING document_id, status, $2::text AS filename;",
-        "queryParams": "={{ $json.document_id }}, {{ $json.filename }}"
+        "query": "INSERT INTO public.automation_runs (document_id, workflow_name, status) VALUES ('{{ $json.document_id }}'::uuid, 'Legal Analyzer Pipeline', 'running') ON CONFLICT (document_id, workflow_name) DO UPDATE SET status = 'running' RETURNING document_id, status, '{{ $json.filename }}'::text AS filename;",
+        "additionalFields": {}
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 1,
@@ -72,12 +80,27 @@
         180
       ],
       "id": "mark-as-running",
-      "name": "Postgres (Mark as Running)"
+      "name": "Postgres (Mark as Running)",
+      "credentials": {
+        "postgres": {
+          "id": "L8j2AWADDcZcwsa8",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {
         "method": "GET",
         "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $json.document_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Internal-Token",
+              "value": "543ca686b71f4d55993848283eebe0b8d2338019e9683bd3201129e32f56bf9f"
+            }
+          ]
+        },
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -95,7 +118,7 @@
           "boolean": [],
           "number": [
             {
-              "value1": "={{ $json.original_text.length }}",
+              "value1": "={{ ($json.original_text || '').length }}",
               "operation": "larger",
               "value2": 200
             }
@@ -115,6 +138,15 @@
       "parameters": {
         "method": "POST",
         "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $json.document_id }}/ocr",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Internal-Token",
+              "value": "543ca686b71f4d55993848283eebe0b8d2338019e9683bd3201129e32f56bf9f"
+            }
+          ]
+        },
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -130,6 +162,15 @@
       "parameters": {
         "method": "POST",
         "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $json.document_id }}/analyze",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Internal-Token",
+              "value": "543ca686b71f4d55993848283eebe0b8d2338019e9683bd3201129e32f56bf9f"
+            }
+          ]
+        },
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -145,6 +186,15 @@
       "parameters": {
         "method": "POST",
         "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $json.document_id }}/score",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Internal-Token",
+              "value": "543ca686b71f4d55993848283eebe0b8d2338019e9683bd3201129e32f56bf9f"
+            }
+          ]
+        },
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -160,6 +210,15 @@
       "parameters": {
         "method": "POST",
         "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $json.document_id }}/compliance",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Internal-Token",
+              "value": "543ca686b71f4d55993848283eebe0b8d2338019e9683bd3201129e32f56bf9f"
+            }
+          ]
+        },
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -175,6 +234,15 @@
       "parameters": {
         "method": "POST",
         "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $json.document_id }}/report",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Internal-Token",
+              "value": "543ca686b71f4d55993848283eebe0b8d2338019e9683bd3201129e32f56bf9f"
+            }
+          ]
+        },
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -189,7 +257,42 @@
     {
       "parameters": {
         "method": "POST",
+        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $json.document_id }}/deep-extract",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Internal-Token",
+              "value": "543ca686b71f4d55993848283eebe0b8d2338019e9683bd3201129e32f56bf9f"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2100,
+        300
+      ],
+      "id": "run-deep-extraction",
+      "name": "HTTP Request (Deep Extraction)",
+      "onError": "continueRegularOutput",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
         "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $json.document_id }}/audit",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Internal-Token",
+              "value": "543ca686b71f4d55993848283eebe0b8d2338019e9683bd3201129e32f56bf9f"
+            }
+          ]
+        },
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -226,6 +329,15 @@
       "parameters": {
         "method": "POST",
         "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $json.document_id }}/escalate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Internal-Token",
+              "value": "543ca686b71f4d55993848283eebe0b8d2338019e9683bd3201129e32f56bf9f"
+            }
+          ]
+        },
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -240,8 +352,8 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "UPDATE public.automation_runs SET status = 'completed' WHERE document_id = $1 AND workflow_name = 'Legal Analyzer Pipeline';\nSELECT d.id AS document_id, d.filename, d.safety_score, r.status FROM public.documents d JOIN public.automation_runs r ON d.id = r.document_id WHERE d.id = $1 AND r.workflow_name = 'Legal Analyzer Pipeline';",
-        "queryParams": "={{ $json.document_id }}"
+        "query": "WITH updated AS (UPDATE public.automation_runs SET status = 'completed' WHERE document_id = '{{ $json.document_id }}'::uuid AND workflow_name = 'Legal Analyzer Pipeline' RETURNING document_id, status) SELECT d.id AS document_id, d.filename, d.safety_score, u.status FROM updated u JOIN public.documents d ON d.id = u.document_id;",
+        "additionalFields": {}
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 1,
@@ -250,7 +362,13 @@
         300
       ],
       "id": "mark-run-completed",
-      "name": "Postgres (Mark Run Completed)"
+      "name": "Postgres (Mark Run Completed)",
+      "credentials": {
+        "postgres": {
+          "id": "L8j2AWADDcZcwsa8",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {
@@ -300,7 +418,15 @@
         300
       ],
       "id": "notify-user-email",
-      "name": "HTTP Request (Send Email)"
+      "name": "HTTP Request (Send Email)",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "NXMj4VsG5gpx7cYE",
+          "name": "Header Auth account"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "continueOnFail": true
     },
     {
       "parameters": {},
@@ -316,12 +442,21 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $node[\"Webhook (Document Uploaded)\"].json.body.document_id }}/audit",
+        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $('Webhook (Document Uploaded)').first().json.body.document_id }}/audit",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Internal-Token",
+              "value": "543ca686b71f4d55993848283eebe0b8d2338019e9683bd3201129e32f56bf9f"
+            }
+          ]
+        },
         "bodyParametersUi": {
           "parameter": [
             {
               "name": "action",
-              "value": "=Workflow error in node '{{ $json.node.name }}': {{ $json.error.message }}"
+              "value": "=Workflow error in node '{{ $json.node?.name || $json.execution?.lastNodeExecuted || 'Unknown Node' }}': {{ $json.error?.message || $json.execution?.error?.message || 'Execution error' }}"
             }
           ]
         },
@@ -334,13 +469,15 @@
         600
       ],
       "id": "log-failure",
-      "name": "HTTP Request (Log Failure)"
+      "name": "HTTP Request (Log Failure)",
+      "onError": "continueRegularOutput",
+      "continueOnFail": true
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "UPDATE public.automation_runs SET retry_count = retry_count + 1, status = 'failed_retry' WHERE document_id = $1 AND workflow_name = 'Legal Analyzer Pipeline';\nSELECT d.id AS document_id, d.filename, r.status, r.retry_count FROM public.documents d JOIN public.automation_runs r ON d.id = r.document_id WHERE d.id = $1 AND r.workflow_name = 'Legal Analyzer Pipeline';",
-        "queryParams": "={{ $node[\"Webhook (Document Uploaded)\"].json.body.document_id }}"
+        "query": "WITH updated AS (UPDATE public.automation_runs SET retry_count = retry_count + 1, status = 'failed_retry' WHERE document_id = '{{ $('Webhook (Document Uploaded)').first().json.body.document_id }}'::uuid AND workflow_name = 'Legal Analyzer Pipeline' RETURNING document_id, status, retry_count) SELECT d.id AS document_id, d.filename, u.status, u.retry_count FROM updated u JOIN public.documents d ON d.id = u.document_id;",
+        "additionalFields": {}
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 1,
@@ -349,7 +486,15 @@
         600
       ],
       "id": "increment-retry",
-      "name": "Postgres (Increment Retry)"
+      "name": "Postgres (Increment Retry)",
+      "credentials": {
+        "postgres": {
+          "id": "L8j2AWADDcZcwsa8",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "continueOnFail": true
     },
     {
       "parameters": {
@@ -375,8 +520,8 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "UPDATE public.automation_runs SET status = 'failed' WHERE document_id = $1 AND workflow_name = 'Legal Analyzer Pipeline';\nSELECT d.id AS document_id, d.filename, r.status FROM public.documents d JOIN public.automation_runs r ON d.id = r.document_id WHERE d.id = $1 AND r.workflow_name = 'Legal Analyzer Pipeline';",
-        "queryParams": "={{ $node[\"Webhook (Document Uploaded)\"].json.body.document_id }}"
+        "query": "WITH updated AS (UPDATE public.automation_runs SET status = 'failed' WHERE document_id = '{{ $('Webhook (Document Uploaded)').first().json.body.document_id }}'::uuid AND workflow_name = 'Legal Analyzer Pipeline' RETURNING document_id, status) SELECT d.id AS document_id, d.filename, u.status FROM updated u JOIN public.documents d ON d.id = u.document_id;",
+        "additionalFields": {}
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 1,
@@ -385,17 +530,34 @@
         500
       ],
       "id": "mark-run-failed",
-      "name": "Postgres (Mark Run Failed)"
+      "name": "Postgres (Mark Run Failed)",
+      "credentials": {
+        "postgres": {
+          "id": "L8j2AWADDcZcwsa8",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "continueOnFail": true
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $node[\"Webhook (Document Uploaded)\"].json.body.document_id }}/audit",
+        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $('Webhook (Document Uploaded)').first().json.body.document_id }}/audit",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Internal-Token",
+              "value": "543ca686b71f4d55993848283eebe0b8d2338019e9683bd3201129e32f56bf9f"
+            }
+          ]
+        },
         "bodyParametersUi": {
           "parameter": [
             {
               "name": "action",
-              "value": "=Max retries exceeded for document: {{ $node[\"Webhook (Document Uploaded)\"].json.body.filename }}. Status flagged as failed."
+              "value": "=Max retries exceeded for document: {{ $json.filename }}. Status flagged as failed."
             }
           ]
         },
@@ -408,7 +570,9 @@
         500
       ],
       "id": "notify-admin",
-      "name": "HTTP Request (Notify Admin)"
+      "name": "HTTP Request (Notify Admin)",
+      "onError": "continueRegularOutput",
+      "continueOnFail": true
     },
     {
       "parameters": {
@@ -422,7 +586,9 @@
         700
       ],
       "id": "wait-backoff",
-      "name": "Wait (Backoff)"
+      "name": "Wait (Backoff)",
+      "onError": "continueRegularOutput",
+      "continueOnFail": true
     }
   ],
   "connections": {
@@ -545,6 +711,17 @@
       ]
     },
     "HTTP Request (Generate Report)": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request (Deep Extraction)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request (Deep Extraction)": {
       "main": [
         [
           {
