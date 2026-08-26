@@ -5,9 +5,11 @@ Contains database schema tables, pydantic entities, and ORM objects.
 from app.models.database_models import (
     AuditLog,
     AutomationRun,
+    ChatMessage,
     Clause,
     ClauseReview,
     ComplianceCheck,
+    DeepExtraction,
     Document,
     ExtractedText,
     LegalReference,
@@ -32,6 +34,7 @@ __all__ = [
     "Notification",
     "AutomationRun",
     "ClauseReview",
+    "ChatMessage",
+    "DeepExtraction",
 ]
-
 

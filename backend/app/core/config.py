@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24 hours
     N8N_WEBHOOK_URL: str = "http://localhost:5678/webhook/document-uploaded"
     INTERNAL_SERVICE_TOKEN: str = "placeholder_internal_service_token_change_me"
+    AUTH_MOCK_TOKEN: str = "mock-token"
     FRONTEND_URL: str = "http://localhost:3000"
     REDIS_URL: str = "redis://localhost:6379/0"
     CELERY_BROKER_URL: str = "redis://localhost:6379/0"

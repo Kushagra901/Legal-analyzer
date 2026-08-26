@@ -100,6 +100,76 @@ export interface ClauseReviewResponse {
   reviewed_at: string;
 }
 
+export interface ChatCitationResponse {
+  clause_id?: string;
+  clause_type: string;
+  snippet: string;
+  section_reference?: string;
+}
+
+export interface ChatMessageResponse {
+  answer: string;
+  citations: ChatCitationResponse[];
+  confidence: string;
+  disclaimer: string;
+}
+
+export interface ChatHistoryItem {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  citations: ChatCitationResponse[];
+  confidence?: string;
+  created_at: string;
+}
+
+export interface DealTermsData {
+  parties: string[];
+  effective_date?: string;
+  expiration_date?: string;
+  auto_renewal?: boolean;
+  renewal_notice_days?: number;
+  governing_law?: string;
+  jurisdiction?: string;
+  document_type?: string;
+}
+
+export interface ObligationItem {
+  party: string;
+  obligation: string;
+  deadline?: string;
+  trigger?: string;
+  penalty?: string;
+}
+
+export interface RiskFlagItem {
+  clause_type: string;
+  severity: string;
+  issue: string;
+  original_text?: string;
+  page_reference?: string;
+}
+
+export interface RedlineItem {
+  clause_type: string;
+  original_text: string;
+  suggested_replacement: string;
+  rationale: string;
+  severity?: string;
+}
+
+export interface DeepExtractionResponse {
+  document_id: string;
+  deal_terms: DealTermsData;
+  obligations: ObligationItem[];
+  risk_flags: RiskFlagItem[];
+  missing_protections: string[];
+  redline_suggestions: RedlineItem[];
+  executive_summary: string;
+  confidence: string;
+  disclaimer: string;
+}
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
 async function getAuthHeaders(): Promise<HeadersInit> {
@@ -256,6 +326,47 @@ const escalateDocument = async (id: string): Promise<AnalysisStatusResponse> => 
   return res.json();
 };
 
+const sendDocumentChat = async (
+  documentId: string,
+  query: string,
+  conversationId?: string
+): Promise<ChatMessageResponse> => {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/v1/documents/${documentId}/chat`, {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify({ query, conversation_id: conversationId }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to send chat message.");
+  }
+  return res.json();
+};
+
+const getDocumentChatHistory = async (documentId: string): Promise<ChatHistoryItem[]> => {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/v1/documents/${documentId}/chat/history`, { headers });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to fetch chat history.");
+  }
+  return res.json();
+};
+
+const getDeepExtraction = async (documentId: string): Promise<DeepExtractionResponse> => {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/v1/documents/${documentId}/deep-extract`, {
+    method: "POST",
+    headers,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to run deep extraction.");
+  }
+  return res.json();
+};
+
 export const apiClient = {
   getDocuments,
   fetchDocuments: getDocuments,
@@ -271,6 +382,9 @@ export const apiClient = {
   fetchReport: getReport,
   getAuditLogs,
   fetchAuditLogs: getAuditLogs,
+  sendDocumentChat,
+  getDocumentChatHistory,
+  getDeepExtraction,
 };
 
 

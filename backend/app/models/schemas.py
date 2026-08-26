@@ -58,7 +58,7 @@ class DocumentListItemResponse(BaseModel):
     uploaded_at: str | None = Field(default=None, description="ISO 8601 upload timestamp")
 
 
-type DocumentListResponse = list[DocumentListItemResponse]
+DocumentListResponse = list[DocumentListItemResponse]
 
 
 class DocumentResponse(BaseModel):
@@ -81,6 +81,7 @@ class ReportResponse(BaseModel):
     risk_level: str = Field(..., description="Overall document risk level")
     summary: str = Field(..., description="Plain-English summary of contract terms")
     recommendations: list[str] = Field(default_factory=list, description="Actionable review recommendations")
+    clauses: list[ClauseResponse] = Field(default_factory=list, description="Categorized clauses and risk flags")
     citations: list[CitationResponse] = Field(default_factory=list, description="Legal reference citations")
 
 
@@ -108,7 +109,7 @@ class AuditLogItemResponse(BaseModel):
     timestamp: str = Field(..., description="Formatted event timestamp")
 
 
-type AuditLogResponse = list[AuditLogItemResponse]
+AuditLogResponse = list[AuditLogItemResponse]
 
 
 class ClauseReviewCreate(BaseModel):
@@ -127,3 +128,85 @@ class ClauseReviewResponse(BaseModel):
     note: str | None = Field(default=None, description="Attorney review note")
     reviewed_at: str = Field(..., description="ISO 8601 timestamp of review")
 
+
+class ChatRequest(BaseModel):
+    """Request schema for document Q&A chat."""
+    query: str = Field(..., description="User's question about the document", min_length=1, max_length=2000)
+    conversation_id: str | None = Field(default=None, description="Optional conversation UUID for multi-turn threads")
+
+
+class ChatCitationResponse(BaseModel):
+    """Citation reference within a chat answer."""
+    clause_id: str | None = Field(default=None, description="UUID of the referenced clause")
+    clause_type: str = Field(..., description="Type/category of the cited clause")
+    snippet: str = Field(..., description="Relevant text excerpt from the clause")
+    section_reference: str | None = Field(default=None, description="Section number reference (e.g. Section 8.2)")
+
+
+class ChatResponse(BaseModel):
+    """Response schema for document Q&A chat."""
+    answer: str = Field(..., description="Grounded answer based on document content")
+    citations: list[ChatCitationResponse] = Field(default_factory=list, description="Clause citations supporting the answer")
+    confidence: str = Field(default="MEDIUM", description="Answer confidence: HIGH, MEDIUM, or LOW")
+    disclaimer: str = Field(default="This AI response assists document review and is not legal advice.", description="Legal disclaimer")
+
+
+class ChatHistoryItemResponse(BaseModel):
+    """Individual chat message in conversation history."""
+    id: str = Field(..., description="Message UUID")
+    role: str = Field(..., description="Message sender role: user or assistant")
+    content: str = Field(..., description="Message text content")
+    citations: list[ChatCitationResponse] = Field(default_factory=list, description="Citations if assistant message")
+    confidence: str | None = Field(default=None, description="Confidence level if assistant message")
+    created_at: str = Field(..., description="ISO 8601 timestamp")
+
+
+class ObligationItem(BaseModel):
+    """Individual obligation extracted from document."""
+    party: str = Field(..., description="Party responsible for the obligation")
+    obligation: str = Field(..., description="Description of the obligation")
+    deadline: str | None = Field(default=None, description="Deadline or timeframe")
+    trigger: str | None = Field(default=None, description="Event that triggers the obligation")
+    penalty: str | None = Field(default=None, description="Consequence of non-compliance")
+
+
+class RiskFlagItem(BaseModel):
+    """Individual risk flag from deep extraction."""
+    clause_type: str = Field(..., description="Type of the flagged clause")
+    severity: str = Field(..., description="Risk severity: LOW, MEDIUM, or HIGH")
+    issue: str = Field(..., description="Description of the risk issue")
+    original_text: str | None = Field(default=None, description="Original clause text")
+    page_reference: str | None = Field(default=None, description="Section or page reference")
+
+
+class RedlineItem(BaseModel):
+    """Individual redline suggestion from deep extraction."""
+    clause_type: str = Field(..., description="Type of clause being redlined")
+    original_text: str = Field(..., description="Original clause text")
+    suggested_replacement: str = Field(..., description="Suggested replacement clause text")
+    rationale: str = Field(..., description="Business rationale for the change")
+
+
+class DealTermsResponse(BaseModel):
+    """Extracted deal terms from the document."""
+    parties: list[str] = Field(default_factory=list, description="Contracting party names")
+    effective_date: str | None = Field(default=None, description="Contract effective date")
+    expiration_date: str | None = Field(default=None, description="Contract expiration date")
+    auto_renewal: bool | None = Field(default=None, description="Whether auto-renewal is present")
+    renewal_notice_days: int | None = Field(default=None, description="Days of notice required before renewal")
+    governing_law: str | None = Field(default=None, description="Governing law jurisdiction")
+    jurisdiction: str | None = Field(default=None, description="Court jurisdiction")
+    document_type: str | None = Field(default=None, description="Type of legal document")
+
+
+class DeepExtractionResponse(BaseModel):
+    """Full deep extraction response schema."""
+    document_id: str = Field(..., description="UUID of the document")
+    deal_terms: DealTermsResponse = Field(default_factory=DealTermsResponse, description="Extracted deal terms")
+    obligations: list[ObligationItem] = Field(default_factory=list, description="Extracted obligations")
+    risk_flags: list[RiskFlagItem] = Field(default_factory=list, description="Identified risk flags")
+    missing_protections: list[str] = Field(default_factory=list, description="Missing standard protective clauses")
+    redline_suggestions: list[RedlineItem] = Field(default_factory=list, description="Suggested clause replacements")
+    executive_summary: str = Field(default="", description="Plain-English executive summary")
+    confidence: str = Field(default="MEDIUM", description="Overall extraction confidence")
+    disclaimer: str = Field(default="This analysis assists document review and is not legal advice.", description="Legal disclaimer")

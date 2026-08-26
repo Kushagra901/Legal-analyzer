@@ -23,7 +23,7 @@ def _is_retryable_exception(exc: Exception) -> bool:
     """
     if isinstance(exc, httpx.HTTPStatusError):
         return exc.response.status_code in RETRY_STATUS_CODES
-    if isinstance(exc, (httpx.RequestError, httpx.HTTPError)):
+    if isinstance(exc, httpx.RequestError):
         return True
     return False
 
