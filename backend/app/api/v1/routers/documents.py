@@ -33,6 +33,7 @@ from app.models import (
     ComplianceCheck,
     DeepExtraction,
     Document,
+    DocumentChunk,
     ExtractedText,
     LegalReference,
     Report,
@@ -50,14 +51,19 @@ from app.models.schemas import (
     ClauseResponse,
     ClauseReviewCreate,
     ClauseReviewResponse,
+    ComplianceAuditRequest,
+    ComplianceResponse,
     DeepExtractionResponse,
     DocumentListItemResponse,
     DocumentResponse,
+    QuickSummaryResponse,
+    SourceChunkResponse,
     UploadResponse,
 )
 from app.services.chat_service import ChatService
 from app.services.compliance_service import ComplianceService
 from app.services.deep_extraction_service import DeepExtractionService
+from app.services.embedding_service import EmbeddingService
 from app.services.llm_service import LLMService
 from app.services.ocr_service import OCRService
 from app.services.risk_service import RiskService
@@ -136,10 +142,10 @@ def ensure_test_user_exists(db: Session) -> uuid.UUID:
     return test_id
 
 
-async def trigger_n8n_webhook(document_id: str, filename: str) -> None:
+async def trigger_n8n_webhook(document_id: str, filename: str, email: str = "") -> None:
     """
     Triggers n8n production webhook after successful document upload.
-    Sends POST with document_id and filename.
+    Sends POST with document_id, filename, and user email.
     """
     import httpx
 
@@ -148,7 +154,8 @@ async def trigger_n8n_webhook(document_id: str, filename: str) -> None:
         async with httpx.AsyncClient() as client:
             payload = {
                 "document_id": document_id,
-                "filename": filename
+                "filename": filename,
+                "email": email
             }
             response = await client.post(
                 settings.N8N_WEBHOOK_URL,
@@ -156,7 +163,7 @@ async def trigger_n8n_webhook(document_id: str, filename: str) -> None:
                 timeout=5.0
             )
             response.raise_for_status()
-            print(f"Successfully triggered n8n webhook for document {document_id}")
+            print(f"Successfully triggered n8n webhook for document {document_id} (email: {email})")
     except Exception as e:
         print(f"Warning: Failed to trigger n8n webhook for document {document_id}: {e}")
 
@@ -271,7 +278,8 @@ async def upload_document(
             background_tasks.add_task(execute_document_analysis, doc_id_str)
 
         # 9. Trigger n8n webhook in background
-        background_tasks.add_task(trigger_n8n_webhook, doc_id_str, db_doc.filename)
+        user_email = current_user.email or ""
+        background_tasks.add_task(trigger_n8n_webhook, doc_id_str, db_doc.filename, user_email)
 
         return UploadResponse(
             document_id=doc_id_str,
@@ -559,35 +567,80 @@ def run_scoring(
     return AnalysisStatusResponse(status="scored", safety_score=safety_score, risk_level=risk_level, document_id=document_id, filename=doc.filename)
 
 
-@router.post("/{document_id}/compliance", response_model=AnalysisStatusResponse)
+@router.post("/{document_id}/compliance", response_model=ComplianceResponse)
 @limiter.limit("60/minute")
 def run_compliance(
     request: Request,
     document_id: str,
+    payload: ComplianceAuditRequest | None = None,
+    rule_set: str | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
-) -> AnalysisStatusResponse:
+) -> ComplianceResponse:
+    """
+    Run compliance check on a document against a specific rule set or auto-detected policy.
+    Callable by the n8n compliance agent via internal service token or authenticated users.
+    """
     doc = get_accessible_document(db, document_id, current_user)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found.")
 
     extracted_text_obj = db.query(ExtractedText).filter(ExtractedText.document_id == doc.id).first()
-    extracted_text = extracted_text_obj.content if extracted_text_obj else ""
+    extracted_text = ""
+    if extracted_text_obj and extracted_text_obj.content:
+        extracted_text = extracted_text_obj.content
+    elif hasattr(doc, "extracted_text") and doc.extracted_text:
+        extracted_text = doc.extracted_text
+    elif hasattr(doc, "original_text") and doc.original_text:
+        extracted_text = doc.original_text
+
+    # Determine rule set: check payload body, query param, or auto-detect
+    requested_rule_set = None
+    if payload and payload.rule_set:
+        requested_rule_set = payload.rule_set.strip()
+    elif rule_set:
+        requested_rule_set = rule_set.strip()
 
     compliance_service = ComplianceService()
-    compliance_res = compliance_service.check_compliance(extracted_text, "standard_nda")
+    auto_detected = False
+    if not requested_rule_set or requested_rule_set.lower() in ("auto", "auto_detect", "detect", "default"):
+        final_rule_set = compliance_service.detect_rule_set(extracted_text, doc.filename)
+        auto_detected = True
+    else:
+        final_rule_set = requested_rule_set
+
+    compliance_res = compliance_service.check_compliance(extracted_text, final_rule_set)
+    violations = compliance_res.get("violations", [])
+    comp_status = compliance_res.get("status", "compliant" if not violations else "non-compliant")
 
     db.query(ComplianceCheck).filter(ComplianceCheck.document_id == doc.id).delete()
     db_compliance = ComplianceCheck(
         id=uuid.uuid4(),
         document_id=doc.id,
-        rule_set=compliance_res.get("rule_set", "standard_nda"),
-        result=json.dumps(compliance_res.get("violations", []))
+        rule_set=final_rule_set,
+        result=json.dumps(violations)
     )
     db.add(db_compliance)
+
+    # Record audit log
+    audit_log = AuditLog(
+        document_id=doc.id,
+        action=f"Compliance check completed ({final_rule_set}, auto_detected={auto_detected}) with {len(violations)} violations"
+    )
+    db.add(audit_log)
     db.commit()
 
-    return AnalysisStatusResponse(status="compliance_checked", violations=compliance_res.get("violations", []), document_id=document_id, filename=doc.filename, safety_score=doc.safety_score, risk_level=doc.risk_level)
+    return ComplianceResponse(
+        document_id=str(doc.id),
+        filename=doc.filename,
+        rule_set=final_rule_set,
+        auto_detected=auto_detected,
+        status=comp_status,
+        violations=violations,
+        safety_score=doc.safety_score,
+        risk_level=doc.risk_level
+    )
+
 
 
 @router.post("/{document_id}/report", response_model=AnalysisStatusResponse)
@@ -919,32 +972,71 @@ def chat_with_document(
     current_user: User = Depends(get_current_user)
 ) -> ChatResponse:
     """
-    Chat with a document using structured Q&A.
+    Chat with a document using 768-dim vector similarity search over document_chunks
+    and grounded Gemini Q&A.
     """
     doc = get_accessible_document(db, document_id, current_user)
-    
-    clauses = db.query(Clause).filter(Clause.document_id == doc.id).all()
-    clause_dicts = [{"clause_type": c.clause_type, "clause_text": c.clause_text} for c in clauses]
-    
+    if not doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
+
+    question = body.question or body.query
+    if not question or not question.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Question cannot be empty.")
+
+    embedding_service = EmbeddingService()
+
+    # 1. Ensure document has chunks; if not yet chunked, chunk it now
+    chunk_count = db.query(DocumentChunk).filter(DocumentChunk.document_id == doc.id).count()
+    if chunk_count == 0:
+        extracted_text_obj = db.query(ExtractedText).filter(ExtractedText.document_id == doc.id).first()
+        extracted_text = extracted_text_obj.content if extracted_text_obj else ""
+        if extracted_text:
+            embedding_service.chunk_and_embed_document(doc.id, extracted_text, db)
+
+    # 2. Run vector similarity search against THIS document's chunks ONLY (top 5)
+    similar_chunks_with_scores = embedding_service.search_similar_chunks(
+        document_id=doc.id,
+        query_text=question,
+        db=db,
+        top_k=5
+    )
+
+    source_chunks_resp = [
+        SourceChunkResponse(
+            chunk_id=str(c.id),
+            chunk_index=c.chunk_index,
+            chunk_text=c.chunk_text,
+            similarity=round(score, 4) if score is not None else None
+        )
+        for c, score in similar_chunks_with_scores
+    ]
+
+    chunks_data = [
+        {"chunk_id": str(c.id), "chunk_index": c.chunk_index, "chunk_text": c.chunk_text}
+        for c, _ in similar_chunks_with_scores
+    ]
+
+    # 3. Grounded Q&A via Gemini using the retrieved chunks
     chat_service = ChatService()
-    relevant_clauses = chat_service._search_clauses_by_keywords(body.query, clause_dicts)
-    if not relevant_clauses:
-        relevant_clauses = clause_dicts[:5]
-        
-    answer_data = chat_service.answer_question(body.query, relevant_clauses, {"filename": doc.filename})
-    
+    answer_data = chat_service.answer_question_with_chunks(
+        question=question,
+        chunks=chunks_data,
+        document_metadata={"filename": doc.filename, "document_id": str(doc.id)}
+    )
+
     conv_id = uuid.UUID(body.conversation_id) if body.conversation_id else uuid.uuid4()
-    
+
+    # 4. Save both user question and assistant answer to chat_messages
     user_msg = ChatMessage(
         id=uuid.uuid4(),
         document_id=doc.id,
         user_id=current_user.id,
         conversation_id=conv_id,
         role="user",
-        content=body.query
+        content=question
     )
     db.add(user_msg)
-    
+
     assistant_msg = ChatMessage(
         id=uuid.uuid4(),
         document_id=doc.id,
@@ -956,24 +1048,25 @@ def chat_with_document(
         confidence=answer_data.get("confidence", "MEDIUM")
     )
     db.add(assistant_msg)
-    
+
     audit_log = AuditLog(
         document_id=doc.id,
-        action=f"Chat query executed for document: {doc.filename}"
+        action=f"Vector chat query executed for document: {doc.filename}"
     )
     db.add(audit_log)
     db.commit()
-    
+
     citations_resp = []
     if assistant_msg.citations:
         for c in assistant_msg.citations:
             citations_resp.append(ChatCitationResponse(
-                clause_type=c.get("clause_type", ""),
+                clause_type=c.get("clause_type", "Document Excerpt"),
                 snippet=c.get("snippet", "")
             ))
-        
+
     return ChatResponse(
         answer=assistant_msg.content,
+        source_chunks=source_chunks_resp,
         citations=citations_resp,
         confidence=assistant_msg.confidence,
         disclaimer=answer_data.get("disclaimer", "This AI response assists document review and is not legal advice.")
@@ -1013,3 +1106,61 @@ def get_chat_history(
         ))
         
     return history
+
+
+@router.post("/{document_id}/quick-summary", response_model=QuickSummaryResponse)
+@limiter.limit("60/minute")
+def get_quick_summary(
+    request: Request,
+    document_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+) -> QuickSummaryResponse:
+    """
+    Generate and return an immediate 2-3 sentence overview of the document via a fast single LLM call.
+    Runs independently of the full multi-step analysis pipeline to provide instant frontend feedback.
+    """
+    doc = get_accessible_document(db, document_id, current_user)
+    if not doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found or access denied."
+        )
+
+    # Retrieve extracted text
+    extracted_text_obj = db.query(ExtractedText).filter(ExtractedText.document_id == doc.id).first()
+    text_content = ""
+    if extracted_text_obj and extracted_text_obj.content:
+        text_content = extracted_text_obj.content
+    elif hasattr(doc, "extracted_text") and doc.extracted_text:
+        text_content = doc.extracted_text
+    elif hasattr(doc, "original_text") and doc.original_text:
+        text_content = doc.original_text
+
+    llm_service = LLMService()
+    summary_data = llm_service.generate_quick_summary(text_content, doc.filename)
+
+    # Persist overview on document if not already finalized
+    if not doc.document_overview:
+        doc.document_overview = summary_data.get("quick_summary")
+    if not doc.summary or doc.summary == "Summary generation pending.":
+        doc.summary = summary_data.get("quick_summary")
+
+    # Record audit log
+    audit_log = AuditLog(
+        document_id=doc.id,
+        action=f"Quick summary generated for document: {doc.filename}"
+    )
+    db.add(audit_log)
+    db.commit()
+
+    return QuickSummaryResponse(
+        document_id=str(doc.id),
+        filename=doc.filename,
+        quick_summary=summary_data.get("quick_summary", "Document overview unavailable."),
+        document_type=summary_data.get("document_type", "Legal Contract"),
+        key_points=summary_data.get("key_points", []),
+        estimated_risk_level=summary_data.get("estimated_risk_level", "LOW"),
+        disclaimer=summary_data.get("disclaimer", "This initial AI overview assists legal review and is not legal advice.")
+    )
+

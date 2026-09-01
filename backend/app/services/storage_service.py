@@ -76,3 +76,14 @@ class StorageService:
         )
 
         return f"{self.bucket_name}/{file_path}"
+
+    def get_public_url(self, file_path: str) -> str:
+        """
+        Get public URL for a file in Supabase storage.
+        """
+        if not self.client:
+            return f"/storage/v1/object/public/{self.bucket_name}/{file_path}"
+        try:
+            return self.client.storage.from_(self.bucket_name).get_public_url(file_path)
+        except Exception:
+            return f"/storage/v1/object/public/{self.bucket_name}/{file_path}"

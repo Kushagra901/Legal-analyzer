@@ -11,11 +11,13 @@ from app.models import (
     Clause,
     ComplianceCheck,
     Document,
+    DocumentChunk,
     ExtractedText,
     LegalReference,
     RiskFlag,
 )
 from app.services.compliance_service import ComplianceService
+from app.services.embedding_service import EmbeddingService
 from app.services.llm_service import LLMService
 from app.services.risk_service import RiskService
 from app.workers.celery_app import celery_app
@@ -56,11 +58,15 @@ def execute_document_analysis(document_id: str):
 
         # Save clauses and risk flags
         for clause_data in analysis.get("clauses", []):
+            confidence_val = clause_data.get("confidence_score")
+            confidence_float = float(confidence_val) if confidence_val is not None else 0.95
             db_clause = Clause(
                 id=uuid.uuid4(),
                 document_id=doc.id,
                 clause_type=clause_data.get("clause_type"),
                 clause_text=clause_data.get("clause_text"),
+                category=clause_data.get("category", "General"),
+                confidence_score=confidence_float,
             )
             db.add(db_clause)
             db.flush()
@@ -97,10 +103,22 @@ def execute_document_analysis(document_id: str):
 
         # Update Document record
         doc.summary = analysis.get("summary", "")
+        doc.document_overview = analysis.get("document_overview")
+        doc.parties = analysis.get("parties")
+        doc.key_dates = analysis.get("key_dates")
+        doc.missing_sections = analysis.get("missing_sections")
+        doc.plain_english_summary = analysis.get("plain_english_summary")
         doc.safety_score = safety_score
         doc.risk_level = risk_level
         doc.status = "completed"
         db.commit()
+
+        # Run text chunking and 768-dim vector embedding generation once per document
+        embedding_service = EmbeddingService()
+        try:
+            embedding_service.chunk_and_embed_document(doc.id, extracted_text, db)
+        except Exception as e:
+            print(f"Warning: Chunking and embedding failed in background task for {document_id}: {e}")
 
         # Write audit log
         audit_log = AuditLog(

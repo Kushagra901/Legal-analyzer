@@ -1,33 +1,61 @@
 """
 Compliance Service.
-Performs rules audit checks against company templates.
+Performs rules audit checks against company templates and auto-detects rule-sets.
 """
+import logging
 from app.services.llm_service import LLMService
+
+logger = logging.getLogger(__name__)
 
 
 class ComplianceService:
     """
-    Service class responsible for managing rule-set matching logic.
+    Service class responsible for managing rule-set matching and compliance checking logic.
     """
 
-    def check_compliance(self, text: str, rule_set: str) -> dict[str, str | list[str]]:
+    def detect_rule_set(self, text: str, filename: str = "") -> str:
+        """
+        Auto-detects the most suitable rule-set catalog ID based on document text and filename.
+        """
+        import re
+        text_lower = text.lower()
+        fn_lower = filename.lower()
+        combined = f"{fn_lower} {text_lower}"
+
+        if re.search(r'\bnda\b', combined) or any(k in combined for k in ["non-disclosure", "nondisclosure", "confidentiality agreement", "confidential information"]):
+            return "standard_nda"
+        if re.search(r'\bdpa\b|\bgdpr\b', combined) or any(k in combined for k in ["data processing", "privacy policy", "personal data", "data controller"]):
+            return "gdpr_privacy"
+        if any(k in combined for k in ["franchise", "franchisor", "franchisee"]):
+            return "franchise_agreement"
+        if any(k in combined for k in ["lease", "landlord", "tenant", "tenancy", "premises"]):
+            return "commercial_lease"
+        if any(k in combined for k in ["employment", "employee", "offer letter", "consultant agreement", "independent contractor"]):
+            return "employment_agreement"
+        if re.search(r'\bsaas\b|\bsla\b', combined) or any(k in combined for k in ["software as a service", "master services", "service level agreement"]):
+            return "saas_service_agreement"
+
+        return "standard_nda"
+
+
+    def check_compliance(self, text: str, rule_set: str | None = None) -> dict[str, str | list[str]]:
         """
         Validates text against configured policies.
-        Performs rule-set compliance checks for a standard NDA.
+        Performs rule-set compliance checks with LLM 3-tier fallback to local rule-based checking.
 
         Args:
             text (str): Contract raw text input.
             rule_set (str): Target rule-set catalog ID.
 
         Returns:
-            dict[str, str | list[str]]: Compliance audit outcome status.
+            dict[str, str | list[str]]: Compliance audit outcome status and violations.
         """
         rule_set = rule_set or "standard_nda"
-        violations = []
+        llm_service = LLMService()
 
         # Try performing LLM-based compliance audit if API key is configured
-        llm_service = LLMService()
-        if llm_service.api_key:
+        effective_key = llm_service.gemini_api_key or llm_service.api_key or llm_service.anthropic_api_key
+        if effective_key:
             try:
                 violations = llm_service.analyze_compliance(text, rule_set)
                 status = "compliant" if not violations else "non-compliant"
@@ -37,40 +65,15 @@ class ComplianceService:
                     "violations": violations
                 }
             except Exception as e:
-                # Log error and proceed to local fallback check
-                import logging
-                logging.getLogger(__name__).warning(
+                logger.warning(
                     f"LLM compliance check failed, falling back to rule-based: {e}"
                 )
 
-        # Standard NDA policy checks (rule-based local fallback)
-        text_lower = text.lower()
-
-        # 1. Confidentiality Scope
-        if "confidential" not in text_lower and "disclosure" not in text_lower:
-            violations.append("Missing Confidentiality Obligations: The agreement does not contain standard confidentiality language.")
-
-        # 2. Term Length (checking for duration or term references)
-        term_keywords = ["term", "duration", "period", "years", "months", "survive", "surviving", "expiration", "terminate", "termination"]
-        has_term = any(kw in text_lower for kw in term_keywords)
-        if not has_term:
-            violations.append("Missing Confidentiality Term: The agreement does not specify a duration or term for the confidentiality obligations.")
-
-        # 3. Governing Law Present
-        gov_keywords = ["governing law", "jurisdiction", "applicable law", "courts of", "governed by"]
-        has_gov = any(kw in text_lower for kw in gov_keywords)
-        if not has_gov:
-            violations.append("Missing Governing Law or Jurisdiction: The agreement does not define applicable governing law.")
-
-        # 4. Indemnification Warning (standard warning/risk for NDAs)
-        if "indemnity" in text_lower or "indemnify" in text_lower or "hold harmless" in text_lower:
-            violations.append("Indemnification Provision Detected: NDAs typically should not contain complex indemnification requirements.")
-
+        # Local rule-based fallback
+        violations = llm_service._rule_based_compliance_fallback(text, rule_set)
         status = "compliant" if not violations else "non-compliant"
         return {
             "rule_set": rule_set,
             "status": status,
             "violations": violations
         }
-
-

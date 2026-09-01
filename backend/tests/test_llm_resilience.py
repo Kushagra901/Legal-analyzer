@@ -41,7 +41,7 @@ def test_llm_service_retries_on_transient_failure_then_succeeds():
         "candidates": [{
             "content": {
                 "parts": [{
-                    "text": '{"summary": "Retried summary", "safety_score": 100, "risk_level": "LOW", "clauses": [], "citations": [], "recommendations": []}'
+                    "text": '{"summary": "Retried summary", "document_overview": "Overview", "plain_english_summary": "Plain English summary", "parties": ["Party A"], "key_dates": {}, "missing_sections": [], "safety_score": 100, "risk_level": "LOW", "clauses": [], "citations": [], "recommendations": []}'
                 }]
             }
         }]

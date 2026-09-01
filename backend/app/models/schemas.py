@@ -2,7 +2,7 @@
 Pydantic v2 validation and serialization schemas for API requests and responses.
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class HealthResponse(BaseModel):
@@ -28,6 +28,8 @@ class ClauseResponse(BaseModel):
     text: str = Field(..., description="Verbatim clause text")
     explanation: str = Field(..., description="Plain-English explanation or risk context")
     severity: str = Field(..., description="Risk severity level: LOW, MEDIUM, or HIGH")
+    category: str | None = Field(default=None, description="Category classification of the clause")
+    confidence_score: float | None = Field(default=None, description="Model confidence score for clause extraction")
 
 
 class AnalysisDetailResponse(BaseModel):
@@ -39,6 +41,13 @@ class AnalysisDetailResponse(BaseModel):
     citations: list[CitationResponse] = Field(default_factory=list, description="Legal reference citations")
     recommendations: list[str] = Field(default_factory=list, description="Actionable review recommendations")
     compliance_violations: list[str] = Field(default_factory=list, description="Policy violation descriptions")
+    document_overview: str | None = Field(default=None, description="Executive overview of document")
+    parties: list[str] | list[dict] | dict | None = Field(default=None, description="Identified contract parties")
+    key_dates: dict | list[dict] | list[str] | None = Field(default=None, description="Identified key contract dates")
+    missing_sections: list[str] | None = Field(default=None, description="Missing standard sections/protections")
+    plain_english_summary: str | None = Field(default=None, description="Plain-English explanation of contract terms")
+    extracted_text: str | None = Field(default=None, description="Extracted raw contract text")
+    original_text: str | None = Field(default=None, description="Extracted raw contract text alias")
 
 
 class UploadResponse(BaseModel):
@@ -68,6 +77,7 @@ class DocumentResponse(BaseModel):
     status: str = Field(..., description="Processing status")
     uploaded_at: str | None = Field(default=None, description="ISO 8601 upload timestamp")
     original_text: str | None = Field(default=None, description="Extracted raw text content")
+    extracted_text: str | None = Field(default=None, description="Extracted raw text content alias")
     analysis: AnalysisDetailResponse | None = Field(default=None, description="AI analysis details")
 
 
@@ -77,12 +87,18 @@ class ReportResponse(BaseModel):
     filename: str = Field(..., description="Original filename")
     uploaded_at: str | None = Field(default=None, description="ISO 8601 upload timestamp")
     report_url: str = Field(..., description="URL path to generated PDF report")
+    format: str | None = Field(default="pdf", description="Report format: pdf or docx")
     safety_score: int = Field(..., description="Safety score from 0 to 100")
     risk_level: str = Field(..., description="Overall document risk level")
     summary: str = Field(..., description="Plain-English summary of contract terms")
     recommendations: list[str] = Field(default_factory=list, description="Actionable review recommendations")
     clauses: list[ClauseResponse] = Field(default_factory=list, description="Categorized clauses and risk flags")
     citations: list[CitationResponse] = Field(default_factory=list, description="Legal reference citations")
+    document_overview: str | None = Field(default=None, description="Executive overview of document")
+    parties: list[str] | list[dict] | dict | None = Field(default=None, description="Identified contract parties")
+    key_dates: dict | list[dict] | list[str] | None = Field(default=None, description="Identified key contract dates")
+    missing_sections: list[str] | None = Field(default=None, description="Missing standard sections/protections")
+    plain_english_summary: str | None = Field(default=None, description="Plain-English explanation of contract terms")
 
 
 class AnalysisStatusResponse(BaseModel):
@@ -131,8 +147,28 @@ class ClauseReviewResponse(BaseModel):
 
 class ChatRequest(BaseModel):
     """Request schema for document Q&A chat."""
-    query: str = Field(..., description="User's question about the document", min_length=1, max_length=2000)
+    question: str | None = Field(default=None, description="User's question about the document", min_length=1, max_length=2000)
+    query: str | None = Field(default=None, description="User's question about the document (alias for backwards compatibility)", min_length=1, max_length=2000)
     conversation_id: str | None = Field(default=None, description="Optional conversation UUID for multi-turn threads")
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_question_or_query(cls, values):
+        if isinstance(values, dict):
+            q = values.get("question") or values.get("query")
+            if not q or not str(q).strip():
+                raise ValueError("A 'question' or 'query' must be provided.")
+            values["question"] = str(q).strip()
+            values["query"] = str(q).strip()
+        return values
+
+
+class SourceChunkResponse(BaseModel):
+    """Details of a document chunk used as context for answering."""
+    chunk_id: str = Field(..., description="UUID of the chunk")
+    chunk_index: int = Field(..., description="Index of the chunk in the document")
+    chunk_text: str = Field(..., description="Content text of the chunk")
+    similarity: float | None = Field(default=None, description="Cosine similarity score (0.0 to 1.0)")
 
 
 class ChatCitationResponse(BaseModel):
@@ -146,6 +182,7 @@ class ChatCitationResponse(BaseModel):
 class ChatResponse(BaseModel):
     """Response schema for document Q&A chat."""
     answer: str = Field(..., description="Grounded answer based on document content")
+    source_chunks: list[SourceChunkResponse] = Field(default_factory=list, description="Source chunks used to answer the question")
     citations: list[ChatCitationResponse] = Field(default_factory=list, description="Clause citations supporting the answer")
     confidence: str = Field(default="MEDIUM", description="Answer confidence: HIGH, MEDIUM, or LOW")
     disclaimer: str = Field(default="This AI response assists document review and is not legal advice.", description="Legal disclaimer")
@@ -210,3 +247,36 @@ class DeepExtractionResponse(BaseModel):
     executive_summary: str = Field(default="", description="Plain-English executive summary")
     confidence: str = Field(default="MEDIUM", description="Overall extraction confidence")
     disclaimer: str = Field(default="This analysis assists document review and is not legal advice.", description="Legal disclaimer")
+
+
+class QuickSummaryResponse(BaseModel):
+    """Response schema for fast 2-3 sentence document overview."""
+    document_id: str = Field(..., description="UUID of the document")
+    filename: str = Field(..., description="Original filename")
+    quick_summary: str = Field(..., description="2-3 sentence immediate document overview")
+    document_type: str = Field(default="Legal Agreement", description="Identified document category or contract type")
+    key_points: list[str] = Field(default_factory=list, description="Immediate 2-3 key takeaways")
+    estimated_risk_level: str = Field(default="LOW", description="Estimated risk level: LOW, MEDIUM, HIGH, or NEUTRAL")
+    disclaimer: str = Field(default="This initial AI overview assists legal review and is not legal advice.", description="Legal disclaimer")
+
+
+class ComplianceAuditRequest(BaseModel):
+    """Request model for document compliance check."""
+    rule_set: str | None = Field(
+        default=None,
+        description="Target rule-set (e.g. 'standard_nda', 'gdpr_privacy', 'employment_agreement', 'franchise_agreement', 'commercial_lease', 'saas_service_agreement'). If omitted, auto-detected from content."
+    )
+
+
+class ComplianceResponse(BaseModel):
+    """Response model for compliance check result."""
+    document_id: str = Field(..., description="UUID of the document")
+    filename: str = Field(..., description="Document filename")
+    rule_set: str = Field(..., description="The applied rule-set (either requested or auto-detected)")
+    auto_detected: bool = Field(default=False, description="Whether rule-set was auto-detected based on content")
+    status: str = Field(..., description="Compliance status: 'compliant' | 'non-compliant' | 'compliance_checked'")
+    violations: list[str] = Field(default_factory=list, description="List of detected policy violations or missing required clauses")
+    safety_score: int | None = Field(default=None, description="Current safety score of the document")
+    risk_level: str | None = Field(default=None, description="Risk level (LOW, MEDIUM, HIGH)")
+
+

@@ -28,10 +28,14 @@ from app.models import (
     ChatMessage,
     Clause,
     Document,
+    DocumentChunk,
+    ExtractedText,
     Organization,
     User,
 )
 from app.services.chat_service import ChatService
+from app.services.embedding_service import EmbeddingService
+from app.services.ocr_service import OCRService
 
 # SQLite in-memory setup for testing
 engine = create_engine(
@@ -78,6 +82,8 @@ def clean_db():
     db = TestingSessionLocal()
     db.query(AuditLog).delete()
     db.query(ChatMessage).delete()
+    db.query(DocumentChunk).delete()
+    db.query(ExtractedText).delete()
     db.query(Clause).delete()
     db.query(Document).delete()
     db.commit()
@@ -157,7 +163,7 @@ def test_chat_endpoints_full_lifecycle():
     db.commit()
     db.close()
 
-    with patch.object(ChatService, "answer_question", return_value=MOCK_CHAT_SUCCESS):
+    with patch.object(ChatService, "answer_question_with_chunks", return_value=MOCK_CHAT_SUCCESS):
         # 1. Send chat message
         chat_req = {
             "query": "Can tenant terminate early?",
@@ -179,3 +185,165 @@ def test_chat_endpoints_full_lifecycle():
         assert history_data[0]["content"] == "Can tenant terminate early?"
         assert history_data[1]["role"] == "assistant"
         assert "Section 8.2" in history_data[1]["content"]
+
+
+def test_vector_chat_sample_nda_known_question():
+    """
+    Test vector chat against sample NDA with a question having a clear answer in the document text.
+    Confirms grounded answer, citations, source chunks, and chat_messages persistence.
+    """
+    db = TestingSessionLocal()
+    user_id = uuid.UUID("00000000-0000-0000-0000-000000000000")
+    doc_id = uuid.uuid4()
+
+    pdf_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        "test-documents",
+        "sample-nda-test-document.pdf"
+    )
+    if not os.path.exists(pdf_path):
+        pdf_path = os.path.join("..", "test-documents", "sample-nda-test-document.pdf")
+
+    ocr = OCRService()
+    extracted_text, _, _ = ocr.process_document(pdf_path)
+
+    doc = Document(
+        id=doc_id,
+        user_id=user_id,
+        filename="sample-nda-test-document.pdf",
+        status="completed"
+    )
+    db.add(doc)
+
+    ext = ExtractedText(
+        id=uuid.uuid4(),
+        document_id=doc_id,
+        content=extracted_text,
+        method="native"
+    )
+    db.add(ext)
+    db.commit()
+
+    # Pre-chunk document
+    embedding_service = EmbeddingService()
+    embedding_service.chunk_and_embed_document(doc_id, extracted_text, db)
+    db.close()
+
+    # Ask known question: Who are the parties to this agreement?
+    payload = {"question": "Who are the parties to this agreement?"}
+    res = client.post(f"/api/v1/documents/{doc_id}/chat", json=payload)
+    assert res.status_code == 200, f"Expected 200, got {res.status_code}: {res.text}"
+    data = res.json()
+
+    assert "answer" in data
+    assert "source_chunks" in data
+    assert len(data["source_chunks"]) > 0
+    assert len(data["source_chunks"]) <= 5
+    for sc in data["source_chunks"]:
+        assert sc["chunk_text"]
+
+    # Verify parties mentioned or grounded answer returned
+    answer_lower = data["answer"].lower()
+    assert "acme" in answer_lower or "jane doe" in answer_lower or "disclosing" in answer_lower or "receiving" in answer_lower
+
+    # Verify chat_messages persisted in database
+    db = TestingSessionLocal()
+    msgs = db.query(ChatMessage).filter(ChatMessage.document_id == doc_id).order_by(ChatMessage.created_at.asc()).all()
+    assert len(msgs) == 2
+    assert msgs[0].role == "user"
+    assert msgs[0].content == "Who are the parties to this agreement?"
+    assert msgs[1].role == "assistant"
+    assert msgs[1].content == data["answer"]
+    db.close()
+
+
+def test_vector_chat_sample_nda_unknown_question():
+    """
+    Test vector chat against sample NDA with a question having NO answer in the document text.
+    Confirms assistant explicitly responds 'I can't find that in this document' and does not hallucinate.
+    """
+    db = TestingSessionLocal()
+    user_id = uuid.UUID("00000000-0000-0000-0000-000000000000")
+    doc_id = uuid.uuid4()
+
+    pdf_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        "test-documents",
+        "sample-nda-test-document.pdf"
+    )
+    if not os.path.exists(pdf_path):
+        pdf_path = os.path.join("..", "test-documents", "sample-nda-test-document.pdf")
+
+    ocr = OCRService()
+    extracted_text, _, _ = ocr.process_document(pdf_path)
+
+    doc = Document(
+        id=doc_id,
+        user_id=user_id,
+        filename="sample-nda-test-document.pdf",
+        status="completed"
+    )
+    db.add(doc)
+
+    ext = ExtractedText(
+        id=uuid.uuid4(),
+        document_id=doc_id,
+        content=extracted_text,
+        method="native"
+    )
+    db.add(ext)
+    db.commit()
+
+    embedding_service = EmbeddingService()
+    embedding_service.chunk_and_embed_document(doc_id, extracted_text, db)
+    db.close()
+
+    # Ask unanswerable question
+    payload = {"question": "What is the monthly subscription fee for the SaaS software product?"}
+    res = client.post(f"/api/v1/documents/{doc_id}/chat", json=payload)
+    assert res.status_code == 200, f"Expected 200, got {res.status_code}: {res.text}"
+    data = res.json()
+
+    assert "answer" in data
+    # Confirm it explicitly states "I can't find that in this document"
+    assert "can't find that in this document" in data["answer"].lower() or "cannot find that in this document" in data["answer"].lower()
+    assert len(data["source_chunks"]) > 0
+
+    # Verify chat_messages persisted
+    db = TestingSessionLocal()
+    msgs = db.query(ChatMessage).filter(ChatMessage.document_id == doc_id).order_by(ChatMessage.created_at.asc()).all()
+    assert len(msgs) == 2
+    assert msgs[0].role == "user"
+    assert msgs[1].role == "assistant"
+    assert "can't find that" in msgs[1].content.lower() or "cannot find that" in msgs[1].content.lower()
+    db.close()
+
+
+def test_vector_chat_document_isolation_rls():
+    """
+    Test vector chat respects user ownership / RLS boundary and does not allow
+    accessing another user's document chunks.
+    """
+    db = TestingSessionLocal()
+    other_user_id = uuid.uuid4()
+    other_user = User(
+        id=other_user_id,
+        email=f"other_{uuid.uuid4().hex[:6]}@example.com",
+        role="user"
+    )
+    db.add(other_user)
+
+    doc_id = uuid.uuid4()
+    doc = Document(
+        id=doc_id,
+        user_id=other_user_id,
+        filename="confidential_memo.pdf",
+        status="completed"
+    )
+    db.add(doc)
+    db.commit()
+    db.close()
+
+    payload = {"question": "What are the terms?"}
+    res = client.post(f"/api/v1/documents/{doc_id}/chat", json=payload)
+    assert res.status_code in (403, 404)

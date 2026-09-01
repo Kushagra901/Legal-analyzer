@@ -261,3 +261,102 @@ def test_compliance_llm_audit_failure_fallback():
             # Since LLM failed, fallback keyword checker runs
             assert result["status"] == "non-compliant"
             assert any("Missing Governing Law or Jurisdiction" in v for v in result["violations"])
+
+
+def test_compliance_auto_detection():
+    """
+    Test that detect_rule_set accurately determines rule sets from content and filenames.
+    """
+    service = ComplianceService()
+
+    assert service.detect_rule_set("This is a mutual non-disclosure agreement.", "nda.pdf") == "standard_nda"
+    assert service.detect_rule_set("Data processor shall handle personal data under GDPR.", "dpa.docx") == "gdpr_privacy"
+    assert service.detect_rule_set("The employer agrees to pay employee standard salary.", "offer_letter.pdf") == "employment_agreement"
+    assert service.detect_rule_set("Franchisor grants exclusive territory to franchisee.", "franchise.pdf") == "franchise_agreement"
+    assert service.detect_rule_set("Landlord leases the premises to tenant.", "lease_agreement.pdf") == "commercial_lease"
+    assert service.detect_rule_set("Customer data is hosted in SaaS cloud under standard SLA.", "saas_agreement.pdf") == "saas_service_agreement"
+
+
+def test_compliance_endpoint_auto_detection_and_internal_token():
+    """
+    Test POST /api/v1/documents/{document_id}/compliance endpoint:
+    1. Called with internal service token (X-Internal-Token).
+    2. Auto-detects rule_set if omitted.
+    3. Persists results to compliance_checks table and audit log.
+    """
+    import uuid
+    from fastapi.testclient import TestClient
+    from app.main import app
+    from app.core.database import SessionLocal
+    from app.models.database_models import Document, ExtractedText, ComplianceCheck, AuditLog
+    from app.api.v1.routers.documents import ensure_test_user_exists
+    from app.core.config import settings
+
+    client = TestClient(app)
+    db = SessionLocal()
+    doc_id = uuid.uuid4()
+
+    try:
+        user_id = ensure_test_user_exists(db)
+
+        doc = Document(
+            id=doc_id,
+            user_id=user_id,
+            filename="data_processing_addendum.pdf",
+            status="uploaded"
+        )
+        db.add(doc)
+        db.commit()
+
+        text_obj = ExtractedText(
+            id=uuid.uuid4(),
+            document_id=doc_id,
+            content="""DATA PROCESSING AGREEMENT
+This Data Processing Addendum governs personal data processing under GDPR.
+1. Security: Data processor shall implement technical and organisational security measures including encryption.
+2. Breach Notification: Data processor shall notify controller within 72 hours without undue delay.
+3. Sub-processors: Prior written authorization required for sub-processors.
+""",
+            method="native",
+            parsing_confidence=1.0
+        )
+        db.add(text_obj)
+        db.commit()
+
+        # 1. Test call with internal service token and NO rule_set specified (auto-detection)
+        headers = {"x-internal-token": settings.INTERNAL_SERVICE_TOKEN}
+        response = client.post(f"/api/v1/documents/{doc_id}/compliance", json={}, headers=headers)
+        assert response.status_code == 200
+        data = response.json()
+
+        assert data["document_id"] == str(doc_id)
+        assert data["auto_detected"] is True
+        assert data["rule_set"] == "gdpr_privacy"
+        assert isinstance(data["violations"], list)
+        assert data["status"] in ["compliant", "non-compliant"]
+
+        # Verify ComplianceCheck row stored in database
+        comp_check = db.query(ComplianceCheck).filter(ComplianceCheck.document_id == doc_id).first()
+        assert comp_check is not None
+        assert comp_check.rule_set == "gdpr_privacy"
+
+        # 2. Test call with explicit rule_set parameter
+        response2 = client.post(
+            f"/api/v1/documents/{doc_id}/compliance",
+            json={"rule_set": "standard_nda"},
+            headers=headers
+        )
+        assert response2.status_code == 200
+        data2 = response2.json()
+        assert data2["auto_detected"] is False
+        assert data2["rule_set"] == "standard_nda"
+
+    finally:
+        # Cleanup
+        db.query(AuditLog).filter(AuditLog.document_id == doc_id).delete()
+        db.query(ComplianceCheck).filter(ComplianceCheck.document_id == doc_id).delete()
+        db.query(ExtractedText).filter(ExtractedText.document_id == doc_id).delete()
+        db.query(Document).filter(Document.id == doc_id).delete()
+        db.commit()
+        db.close()
+

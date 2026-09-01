@@ -21,6 +21,11 @@ from app.services.risk_service import RiskService
 
 MOCK_GEMINI_SUCCESS_TEXT = json.dumps({
     "summary": "This is a real Gemini summary.",
+    "document_overview": "This is an overview of the agreement.",
+    "plain_english_summary": "This is a plain-English explanation.",
+    "parties": ["Company A", "Company B"],
+    "key_dates": {"effective_date": "2026-01-01"},
+    "missing_sections": ["Dispute Resolution"],
     "safety_score": 90,
     "risk_level": "LOW",
     "clauses": [
@@ -28,7 +33,9 @@ MOCK_GEMINI_SUCCESS_TEXT = json.dumps({
             "clause_type": "Confidentiality Obligations",
             "clause_text": "Both parties agree to hold information confidential.",
             "severity": "LOW",
-            "explanation": "Standard confidentiality obligation."
+            "explanation": "Standard confidentiality obligation.",
+            "category": "Confidentiality & IP",
+            "confidence_score": 0.95
         }
     ],
     "citations": [
@@ -169,6 +176,11 @@ def test_llm_service_claude_primary_success():
 
     claude_json = json.dumps({
         "summary": "This is a real Claude summary.",
+        "document_overview": "This is a Claude document overview.",
+        "plain_english_summary": "This is a Claude plain-English summary.",
+        "parties": ["Alpha Corp", "Beta LLC"],
+        "key_dates": {"effective_date": "2026-02-01"},
+        "missing_sections": ["Indemnity Cap"],
         "safety_score": 85,
         "risk_level": "LOW",
         "clauses": [
@@ -176,7 +188,9 @@ def test_llm_service_claude_primary_success():
                 "clause_type": "Limitation of Liability",
                 "clause_text": "Neither party is liable for indirect damages.",
                 "severity": "LOW",
-                "explanation": "Standard limitation."
+                "explanation": "Standard limitation.",
+                "category": "Liability & Risk",
+                "confidence_score": 0.92
             }
         ],
         "citations": [{"source": "UCC", "citation": "Section 2-719"}],
