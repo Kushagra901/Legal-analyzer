@@ -11,19 +11,23 @@ from app.models.database_models import (
     ComplianceCheck,
     DeepExtraction,
     Document,
+    DocumentChunk,
     ExtractedText,
+    GUID,
     LegalReference,
     Notification,
     Organization,
     Report,
     RiskFlag,
     User,
+    VectorType,
 )
 
 __all__ = [
     "Organization",
     "User",
     "Document",
+    "DocumentChunk",
     "AuditLog",
     "ExtractedText",
     "Clause",
@@ -36,5 +40,7 @@ __all__ = [
     "ClauseReview",
     "ChatMessage",
     "DeepExtraction",
+    "GUID",
+    "VectorType",
 ]
 

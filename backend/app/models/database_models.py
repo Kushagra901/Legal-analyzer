@@ -3,8 +3,10 @@
 Database Models.
 Defines SQLAlchemy ORM mappings for the core database schema.
 """
+import json
 import uuid
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     JSON,
     Boolean,
@@ -21,6 +23,46 @@ from sqlalchemy.sql import func
 from sqlalchemy.types import CHAR, TypeDecorator, UserDefinedType
 
 from app.core.database import Base
+
+
+class VectorType(TypeDecorator):
+    """
+    Platform-independent Vector type for 768-dim embeddings.
+    Uses pgvector's Vector in PostgreSQL, and Text (JSON) in SQLite.
+    """
+    impl = Text
+    cache_ok = True
+
+    def __init__(self, dim: int = 768, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.dim = dim
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == 'postgresql':
+            return dialect.type_descriptor(Vector(self.dim))
+        else:
+            return dialect.type_descriptor(Text())
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return value
+        if dialect.name == 'postgresql':
+            return value
+        if isinstance(value, (list, tuple)):
+            return json.dumps(value)
+        return str(value)
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return value
+        if dialect.name == 'postgresql':
+            return list(value) if hasattr(value, '__iter__') and not isinstance(value, str) else value
+        if isinstance(value, str):
+            try:
+                return json.loads(value)
+            except Exception:
+                return value
+        return value
 
 
 class GUID(TypeDecorator):
@@ -114,17 +156,6 @@ class AuditLog(Base):
     document_id = Column(GUID, ForeignKey("documents.id", ondelete="SET NULL"), nullable=True)
     action: str = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-
-
-class Vector(UserDefinedType):
-    """
-    Custom SQLAlchemy type for pgvector.
-    Works for both PostgreSQL and SQLite (as SQLite ignores the length constraints).
-    """
-    cache_ok = True
-
-    def get_col_spec(self, **kw):
-        return "vector(1536)"
 
 
 class ExtractedText(Base):
@@ -246,6 +277,21 @@ class ClauseReview(Base):
     reviewed_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
+class DocumentChunk(Base):
+    """
+    SQLAlchemy model representing the document_chunks table.
+    Stores ~800-character overlapping chunks and their 768-dim embeddings.
+    """
+    __tablename__ = "document_chunks"
+
+    id = Column(GUID, primary_key=True, default=uuid.uuid4)
+    document_id = Column(GUID, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
+    chunk_text = Column(Text, nullable=False)
+    chunk_index = Column(Integer, nullable=False)
+    embedding = Column(VectorType(768), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
 class ChatMessage(Base):
     """
     SQLAlchemy model representing the chat_messages table.
@@ -255,7 +301,7 @@ class ChatMessage(Base):
 
     id = Column(GUID, primary_key=True, default=uuid.uuid4)
     document_id = Column(GUID, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
-    user_id = Column(GUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(GUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     conversation_id = Column(GUID, nullable=False, default=uuid.uuid4)
     role: str = Column(String(20), nullable=False)
     content: str = Column(Text, nullable=False)
@@ -281,3 +327,4 @@ class DeepExtraction(Base):
     executive_summary: str = Column(Text, nullable=True)
     confidence: str = Column(String(10), default="MEDIUM")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+

@@ -132,7 +132,7 @@ def test_upload_valid_pdf():
         assert "storage_path" in data
         mock_upload.assert_called_once()
         mock_ocr.assert_called_once()
-        mock_webhook.assert_called_once_with(data["document_id"], file_name)
+        mock_webhook.assert_called_once_with(data["document_id"], file_name, "test@example.com")
 
         # Execute background analysis task synchronously for test DB verification
         with patch("app.workers.tasks.SessionLocal", TestingSessionLocal):
@@ -190,7 +190,7 @@ def test_upload_valid_docx():
         assert "storage_path" in data
         mock_upload.assert_called_once()
         mock_ocr.assert_called_once()
-        mock_webhook.assert_called_once_with(data["document_id"], file_name)
+        mock_webhook.assert_called_once_with(data["document_id"], file_name, "test@example.com")
 
         # Execute background analysis task synchronously for test DB verification
         with patch("app.workers.tasks.SessionLocal", TestingSessionLocal):

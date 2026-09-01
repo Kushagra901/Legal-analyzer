@@ -49,6 +49,13 @@ export interface AnalysisDetailResponse {
     violations: string[];
   }>;
   extracted_text?: string;
+  original_text?: string;
+  document_overview?: string;
+  parties?: string[] | any;
+  key_dates?: Record<string, any> | any;
+  missing_sections?: string[];
+  plain_english_summary?: string;
+  recommendations?: string[];
 }
 
 export interface DocumentResponse {
@@ -56,6 +63,8 @@ export interface DocumentResponse {
   filename: string;
   status: string;
   uploaded_at?: string;
+  original_text?: string;
+  extracted_text?: string;
   analysis?: AnalysisDetailResponse;
 }
 
@@ -107,8 +116,16 @@ export interface ChatCitationResponse {
   section_reference?: string;
 }
 
+export interface SourceChunk {
+  chunk_id: string;
+  chunk_index: number;
+  chunk_text: string;
+  similarity?: number | null;
+}
+
 export interface ChatMessageResponse {
   answer: string;
+  source_chunks?: SourceChunk[];
   citations: ChatCitationResponse[];
   confidence: string;
   disclaimer: string;
@@ -169,6 +186,17 @@ export interface DeepExtractionResponse {
   confidence: string;
   disclaimer: string;
 }
+
+export interface QuickSummaryResponse {
+  document_id: string;
+  filename: string;
+  quick_summary: string;
+  document_type: string;
+  key_points: string[];
+  estimated_risk_level: string;
+  disclaimer: string;
+}
+
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
@@ -335,7 +363,7 @@ const sendDocumentChat = async (
   const res = await fetch(`${API_BASE_URL}/api/v1/documents/${documentId}/chat`, {
     method: "POST",
     headers: { ...headers, "Content-Type": "application/json" },
-    body: JSON.stringify({ query, conversation_id: conversationId }),
+    body: JSON.stringify({ question: query, query, conversation_id: conversationId }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -367,6 +395,19 @@ const getDeepExtraction = async (documentId: string): Promise<DeepExtractionResp
   return res.json();
 };
 
+const getQuickSummary = async (documentId: string): Promise<QuickSummaryResponse> => {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/v1/documents/${documentId}/quick-summary`, {
+    method: "POST",
+    headers,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to generate quick summary.");
+  }
+  return res.json();
+};
+
 export const apiClient = {
   getDocuments,
   fetchDocuments: getDocuments,
@@ -385,6 +426,7 @@ export const apiClient = {
   sendDocumentChat,
   getDocumentChatHistory,
   getDeepExtraction,
+  getQuickSummary,
 };
 
 

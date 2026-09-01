@@ -30,6 +30,8 @@ interface DocumentDetail {
   filename: string;
   status: string;
   uploaded_at?: string;
+  original_text?: string;
+  extracted_text?: string;
   analysis?: {
     summary?: string;
     safety_score?: number;
@@ -41,6 +43,13 @@ interface DocumentDetail {
       violations: string[];
     }>;
     extracted_text?: string;
+    original_text?: string;
+    document_overview?: string;
+    parties?: string[] | any;
+    key_dates?: Record<string, any> | any;
+    missing_sections?: string[];
+    plain_english_summary?: string;
+    recommendations?: string[];
   };
 }
 
@@ -72,6 +81,25 @@ export default function DocumentDetailPage({
         setDocument(data);
         if (data.status === "escalated" || data.status === "flagged") {
           setEscalated(true);
+        }
+
+        // If summary or overview is not yet generated, trigger quick-summary for instant overview
+        if (!data.analysis?.summary || data.analysis.summary === "Summary generation pending." || data.status === "uploaded" || data.status === "processing") {
+          apiClient.getQuickSummary(docId).then((quickData) => {
+            if (quickData?.quick_summary) {
+              setDocument((prev) => {
+                if (!prev) return prev;
+                return {
+                  ...prev,
+                  analysis: {
+                    ...prev.analysis,
+                    summary: prev.analysis?.summary && prev.analysis.summary !== "Summary generation pending." ? prev.analysis.summary : quickData.quick_summary,
+                    document_overview: prev.analysis?.document_overview || quickData.quick_summary
+                  }
+                };
+              });
+            }
+          }).catch((e) => console.error("Quick summary fetch error:", e));
         }
       } catch (err: any) {
         setError(err.message || "Failed to load document analysis.");
@@ -205,8 +233,36 @@ export default function DocumentDetailPage({
   const clauses = analysis.clauses || [];
   const citations = analysis.citations || [];
   const compliance = analysis.compliance_checks || [];
-  const extractedText = analysis.extracted_text || "Extracted contract text unavailable.";
+  const extractedText =
+    document.original_text ||
+    document.extracted_text ||
+    analysis.extracted_text ||
+    analysis.original_text ||
+    "Extracted contract text unavailable.";
   const riskLevel = (analysis.risk_level?.toLowerCase() || "neutral") as "low" | "medium" | "high" | "neutral";
+
+  const handleSelectSnippet = (snippetText: string) => {
+    if (!snippetText) return;
+    setSelectedClauseText(snippetText);
+
+    // Find matching line in extractedText
+    const lines = extractedText.split("\n");
+    const cleanSnippet = snippetText.trim().toLowerCase();
+
+    // Find index of first matching line
+    const matchingIdx = lines.findIndex((line) => {
+      const cleanLine = line.trim().toLowerCase();
+      if (!cleanLine || cleanLine.length < 4) return false;
+      return cleanSnippet.includes(cleanLine) || cleanLine.includes(cleanSnippet.slice(0, 30));
+    });
+
+    if (matchingIdx !== -1) {
+      const targetElem = typeof window !== "undefined" ? window.document.getElementById(`doc-line-${matchingIdx}`) : null;
+      if (targetElem) {
+        targetElem.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -299,7 +355,7 @@ export default function DocumentDetailPage({
               : "text-[#8a8985] hover:text-[#0d1b2a]"
           }`}
         >
-          Analysis
+          Review &amp; Q&amp;A (3-Pane)
         </button>
         <button
           onClick={() => setActiveTab("dealTerms")}
@@ -329,161 +385,180 @@ export default function DocumentDetailPage({
               : "text-[#8a8985] hover:text-[#0d1b2a]"
           }`}
         >
-          Chat
+          Full Chat
         </button>
       </div>
 
       {activeTab === "analysis" && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-        {/* Left Pane (Pane 1): Document Viewer / Original Text */}
-        <Card className="h-[750px] flex flex-col">
-          <CardHeader className="py-3 px-4 flex flex-row items-center justify-between">
-            <CardTitle className="text-sm font-semibold">
-              Pane 1: Extracted Document Text
-            </CardTitle>
-            <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider font-mono">
-              OCR Parsing Verified
-            </span>
-          </CardHeader>
-          <CardContent className="flex-1 p-4 overflow-y-auto font-mono text-xs leading-relaxed bg-[var(--bg-page)] space-y-2 border-t border-[var(--border-subtle)]">
-            {extractedText.split("\n").map((line, idx) => {
-              const isSelected = selectedClauseText && line.toLowerCase().includes(selectedClauseText.toLowerCase());
-              return (
-                <div
-                  key={idx}
-                  className={`flex items-start space-x-3 p-1 rounded-none transition-colors ${
-                    isSelected
-                      ? "bg-[var(--risk-medium-bg)] border-l-2 border-[var(--risk-medium)] font-semibold"
-                      : "hover:bg-[var(--bg-surface)]"
-                  }`}
-                >
-                  <span className="text-[10px] text-[var(--text-muted)] select-none w-8 text-right shrink-0">
-                    {idx + 1}
-                  </span>
-                  <span className="flex-1 whitespace-pre-wrap select-text">
-                    {line}
-                  </span>
-                </div>
-              );
-            })}
-          </CardContent>
-        </Card>
-
-        {/* Right Pane (Pane 2): Identified Clauses & Risk Analysis */}
-        <div className="h-[750px] overflow-y-auto space-y-6 pr-1">
-          {/* Safety Score Card */}
-          <Card>
-            <CardHeader className="py-3 px-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+          {/* Left Pane (Pane 1): Document Viewer / Original Text */}
+          <Card className="h-[750px] flex flex-col">
+            <CardHeader className="py-3 px-4 flex flex-row items-center justify-between">
               <CardTitle className="text-sm font-semibold">
-                Contract Risk Score Summary
+                Pane 1: Extracted Document Text
               </CardTitle>
+              <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider font-mono">
+                OCR Parsing Verified
+              </span>
             </CardHeader>
-            <CardContent className="p-4 flex items-center justify-between">
-              <div>
-                <p className="text-xs text-[var(--text-muted)]">Calculated Safety Metric</p>
-                <p className="font-serif text-3xl font-bold text-[var(--accent-primary)] mt-1">
-                  {analysis.safety_score !== undefined ? `${analysis.safety_score} / 100` : "N/A"}
-                </p>
-              </div>
-              <div className="text-right max-w-xs">
-                <p className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wider">Executive Overview</p>
-                <p className="text-xs text-[var(--text-main)] mt-1 leading-snug">
-                  {analysis.summary || "Summary generation pending."}
-                </p>
-              </div>
+            <CardContent className="flex-1 p-4 overflow-y-auto font-mono text-xs leading-relaxed bg-[var(--bg-page)] space-y-2 border-t border-[var(--border-subtle)]">
+              {extractedText.split("\n").map((line, idx) => {
+                const cleanLine = line.trim().toLowerCase();
+                const cleanSelected = (selectedClauseText || "").trim().toLowerCase();
+                const isSelected = Boolean(
+                  cleanSelected &&
+                  cleanLine.length > 0 &&
+                  (
+                    cleanLine.includes(cleanSelected.slice(0, 30)) ||
+                    cleanSelected.includes(cleanLine)
+                  )
+                );
+                return (
+                  <div
+                    key={idx}
+                    id={`doc-line-${idx}`}
+                    className={`flex items-start space-x-3 p-1 rounded-none transition-colors duration-150 ${
+                      isSelected
+                        ? "bg-[#fef3c7] text-[#92400e] border-l-2 border-[#d97706] font-semibold"
+                        : "hover:bg-[var(--bg-surface)] text-[var(--text-main)]"
+                    }`}
+                  >
+                    <span className="text-[10px] text-[var(--text-muted)] select-none w-8 text-right shrink-0">
+                      {idx + 1}
+                    </span>
+                    <span className="flex-1 whitespace-pre-wrap select-text">
+                      {line}
+                    </span>
+                  </div>
+                );
+              })}
             </CardContent>
           </Card>
 
-          {/* Identified Clauses List */}
-          <Card>
-            <CardHeader className="py-3 px-4">
-              <CardTitle className="text-sm font-semibold">
-                Identified Clauses & Risk Flags ({clauses.length})
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4 space-y-4">
-              {clauses.length === 0 ? (
-                <p className="text-xs text-[var(--text-muted)]">No distinct clauses parsed yet.</p>
-              ) : (
-                clauses.map((c, i) => {
-                  const level = (c.risk_level?.toLowerCase() || "low") as "low" | "medium" | "high";
-                  return (
-                    <div
-                      key={i}
-                      onClick={() => setSelectedClauseText(c.text)}
-                      className="cursor-pointer"
-                    >
-                      <ClauseHighlight
-                        title={c.type}
-                        riskLevel={level}
-                        text={c.text}
-                      />
-                      {c.explanation && (
-                        <p className="text-[11px] text-[var(--text-muted)] mt-1.5 px-2 border-l-2 border-[var(--border-dark)]">
-                          <strong>Risk Rationale:</strong> {c.explanation}
+          {/* Middle Pane (Pane 2): Identified Clauses & Risk Analysis */}
+          <div className="h-[750px] overflow-y-auto space-y-6 pr-1">
+            {/* Safety Score Card */}
+            <Card>
+              <CardHeader className="py-3 px-4">
+                <CardTitle className="text-sm font-semibold">
+                  Contract Risk Score Summary
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-[var(--text-muted)]">Calculated Safety Metric</p>
+                  <p className="font-serif text-3xl font-bold text-[var(--accent-primary)] mt-1">
+                    {analysis.safety_score !== undefined ? `${analysis.safety_score} / 100` : "N/A"}
+                  </p>
+                </div>
+                <div className="text-right max-w-xs">
+                  <p className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wider">Executive Overview</p>
+                  <p className="text-xs text-[var(--text-main)] mt-1 leading-snug">
+                    {analysis.summary || "Summary generation pending."}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Identified Clauses List */}
+            <Card>
+              <CardHeader className="py-3 px-4">
+                <CardTitle className="text-sm font-semibold">
+                  Identified Clauses &amp; Risk Flags ({clauses.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 space-y-4">
+                {clauses.length === 0 ? (
+                  <p className="text-xs text-[var(--text-muted)]">No distinct clauses parsed yet.</p>
+                ) : (
+                  clauses.map((c, i) => {
+                    const level = (c.risk_level?.toLowerCase() || "low") as "low" | "medium" | "high";
+                    return (
+                      <div
+                        key={i}
+                        onClick={() => handleSelectSnippet(c.text)}
+                        className="cursor-pointer"
+                      >
+                        <ClauseHighlight
+                          title={c.type}
+                          riskLevel={level}
+                          text={c.text}
+                        />
+                        {c.explanation && (
+                          <p className="text-[11px] text-[var(--text-muted)] mt-1.5 px-2 border-l-2 border-[var(--border-dark)]">
+                            <strong>Risk Rationale:</strong> {c.explanation}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Standard Compliance Audit Results */}
+            {compliance.length > 0 && (
+              <Card>
+                <CardHeader className="py-3 px-4">
+                  <CardTitle className="text-sm font-semibold">
+                    Standard NDA Compliance Audit
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 space-y-2">
+                  {compliance.map((item, i) => (
+                    <div key={i} className="space-y-1">
+                      <p className="text-xs font-semibold uppercase text-[var(--text-muted)]">
+                        Rule Set: {item.rule_set}
+                      </p>
+                      {item.violations.length === 0 ? (
+                        <p className="text-xs text-[var(--risk-low)] font-semibold">
+                          ✓ Fully compliant with standard terms.
                         </p>
+                      ) : (
+                        item.violations.map((v, vIdx) => (
+                          <div
+                            key={vIdx}
+                            className="p-2 text-xs bg-[var(--risk-high-bg)] border border-[var(--risk-high)] text-[var(--risk-high)]"
+                          >
+                            ⚠ {v}
+                          </div>
+                        ))
                       )}
                     </div>
-                  );
-                })
-              )}
-            </CardContent>
-          </Card>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
 
-          {/* Standard Compliance Audit Results */}
-          {compliance.length > 0 && (
-            <Card>
-              <CardHeader className="py-3 px-4">
-                <CardTitle className="text-sm font-semibold">
-                  Standard NDA Compliance Audit
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 space-y-2">
-                {compliance.map((item, i) => (
-                  <div key={i} className="space-y-1">
-                    <p className="text-xs font-semibold uppercase text-[var(--text-muted)]">
-                      Rule Set: {item.rule_set}
-                    </p>
-                    {item.violations.length === 0 ? (
-                      <p className="text-xs text-[var(--risk-low)] font-semibold">
-                        ✓ Fully compliant with standard terms.
-                      </p>
-                    ) : (
-                      item.violations.map((v, vIdx) => (
-                        <div
-                          key={vIdx}
-                          className="p-2 text-xs bg-[var(--risk-high-bg)] border border-[var(--risk-high)] text-[var(--risk-high)]"
-                        >
-                          ⚠ {v}
-                        </div>
-                      ))
-                    )}
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
+            {/* Precedent Citations */}
+            {citations.length > 0 && (
+              <Card>
+                <CardHeader className="py-3 px-4">
+                  <CardTitle className="text-sm font-semibold">
+                    Legal Citations &amp; Precedents
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 space-y-3">
+                  {citations.map((cite, idx) => (
+                    <div key={idx} className="border-b border-[var(--border-subtle)] pb-2 last:border-0">
+                      <p className="text-xs font-bold text-[var(--accent-primary)]">{cite.source}</p>
+                      <p className="text-xs text-[var(--text-muted)] mt-0.5">{cite.citation}</p>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+          </div>
 
-          {/* Precedent Citations */}
-          {citations.length > 0 && (
-            <Card>
-              <CardHeader className="py-3 px-4">
-                <CardTitle className="text-sm font-semibold">
-                  Legal Citations & Precedents
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 space-y-3">
-                {citations.map((cite, idx) => (
-                  <div key={idx} className="border-b border-[var(--border-subtle)] pb-2 last:border-0">
-                    <p className="text-xs font-bold text-[var(--accent-primary)]">{cite.source}</p>
-                    <p className="text-xs text-[var(--text-muted)] mt-0.5">{cite.citation}</p>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
+          {/* Right Pane (Pane 3): Document Q&A Assistant / Chat Panel */}
+          <div className="h-[750px]">
+            <DocumentChatDrawer
+              documentId={docId}
+              onSelectSnippet={handleSelectSnippet}
+              activeSnippet={selectedClauseText}
+            />
+          </div>
         </div>
-      </div>
       )}
 
       {activeTab === "dealTerms" && (
@@ -496,7 +571,11 @@ export default function DocumentDetailPage({
 
       {activeTab === "chat" && (
         <div className="h-[750px]">
-          <DocumentChatDrawer documentId={docId} />
+          <DocumentChatDrawer
+            documentId={docId}
+            onSelectSnippet={handleSelectSnippet}
+            activeSnippet={selectedClauseText}
+          />
         </div>
       )}
     </div>

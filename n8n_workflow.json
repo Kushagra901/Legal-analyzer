@@ -22,7 +22,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT '{{ $json.body.document_id }}'::text AS document_id, '{{ $json.body.filename }}'::text AS filename, COALESCE((SELECT status FROM public.automation_runs WHERE document_id = '{{ $json.body.document_id }}'::uuid AND workflow_name = 'Legal Analyzer Pipeline'), 'not_started') AS status;",
+        "query": "SELECT '{{ $json.body.document_id }}'::text AS document_id, '{{ $json.body.filename }}'::text AS filename, '{{ $json.body.email }}'::text AS email, COALESCE((SELECT status FROM public.automation_runs WHERE document_id = '{{ $json.body.document_id }}'::uuid AND workflow_name = 'Legal Analyzer Pipeline'), 'not_started') AS status;",
         "additionalFields": {}
       },
       "type": "n8n-nodes-base.postgres",
@@ -70,7 +70,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO public.automation_runs (document_id, workflow_name, status) VALUES ('{{ $json.document_id }}'::uuid, 'Legal Analyzer Pipeline', 'running') ON CONFLICT (document_id, workflow_name) DO UPDATE SET status = 'running' RETURNING document_id, status, '{{ $json.filename }}'::text AS filename;",
+        "query": "INSERT INTO public.automation_runs (document_id, workflow_name, status) VALUES ('{{ $('Webhook (Document Uploaded)').first().json.body.document_id }}'::uuid, 'Legal Analyzer Pipeline', 'running') ON CONFLICT (document_id, workflow_name) DO UPDATE SET status = 'running' RETURNING document_id, status, '{{ $('Webhook (Document Uploaded)').first().json.body.filename }}'::text AS filename, '{{ $('Webhook (Document Uploaded)').first().json.body.email }}'::text AS email;",
         "additionalFields": {}
       },
       "type": "n8n-nodes-base.postgres",
@@ -97,7 +97,7 @@
           "parameters": [
             {
               "name": "X-Internal-Token",
-              "value": "543ca686b71f4d55993848283eebe0b8d2338019e9683bd3201129e32f56bf9f"
+              "value": "placeholder_internal_service_token"
             }
           ]
         },
@@ -143,7 +143,7 @@
           "parameters": [
             {
               "name": "X-Internal-Token",
-              "value": "543ca686b71f4d55993848283eebe0b8d2338019e9683bd3201129e32f56bf9f"
+              "value": "placeholder_internal_service_token"
             }
           ]
         },
@@ -167,7 +167,7 @@
           "parameters": [
             {
               "name": "X-Internal-Token",
-              "value": "543ca686b71f4d55993848283eebe0b8d2338019e9683bd3201129e32f56bf9f"
+              "value": "placeholder_internal_service_token"
             }
           ]
         },
@@ -191,7 +191,7 @@
           "parameters": [
             {
               "name": "X-Internal-Token",
-              "value": "543ca686b71f4d55993848283eebe0b8d2338019e9683bd3201129e32f56bf9f"
+              "value": "placeholder_internal_service_token"
             }
           ]
         },
@@ -215,7 +215,7 @@
           "parameters": [
             {
               "name": "X-Internal-Token",
-              "value": "543ca686b71f4d55993848283eebe0b8d2338019e9683bd3201129e32f56bf9f"
+              "value": "placeholder_internal_service_token"
             }
           ]
         },
@@ -239,7 +239,7 @@
           "parameters": [
             {
               "name": "X-Internal-Token",
-              "value": "543ca686b71f4d55993848283eebe0b8d2338019e9683bd3201129e32f56bf9f"
+              "value": "placeholder_internal_service_token"
             }
           ]
         },
@@ -263,7 +263,7 @@
           "parameters": [
             {
               "name": "X-Internal-Token",
-              "value": "543ca686b71f4d55993848283eebe0b8d2338019e9683bd3201129e32f56bf9f"
+              "value": "placeholder_internal_service_token"
             }
           ]
         },
@@ -289,7 +289,7 @@
           "parameters": [
             {
               "name": "X-Internal-Token",
-              "value": "543ca686b71f4d55993848283eebe0b8d2338019e9683bd3201129e32f56bf9f"
+              "value": "placeholder_internal_service_token"
             }
           ]
         },
@@ -334,7 +334,7 @@
           "parameters": [
             {
               "name": "X-Internal-Token",
-              "value": "543ca686b71f4d55993848283eebe0b8d2338019e9683bd3201129e32f56bf9f"
+              "value": "placeholder_internal_service_token"
             }
           ]
         },
@@ -352,7 +352,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "WITH updated AS (UPDATE public.automation_runs SET status = 'completed' WHERE document_id = '{{ $json.document_id }}'::uuid AND workflow_name = 'Legal Analyzer Pipeline' RETURNING document_id, status) SELECT d.id AS document_id, d.filename, d.safety_score, u.status FROM updated u JOIN public.documents d ON d.id = u.document_id;",
+        "query": "WITH updated AS (UPDATE public.automation_runs SET status = 'completed' WHERE document_id = '{{ $json.document_id }}'::uuid AND workflow_name = 'Legal Analyzer Pipeline' RETURNING document_id, status) SELECT d.id AS document_id, d.filename, d.safety_score, u.status, COALESCE(usr.email, '{{ $('Webhook (Document Uploaded)').first().json.body.email }}', '') AS email FROM updated u JOIN public.documents d ON d.id = u.document_id LEFT JOIN public.users usr ON usr.id = d.user_id;",
         "additionalFields": {}
       },
       "type": "n8n-nodes-base.postgres",
@@ -377,8 +377,8 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
-        "headersUi": {
-          "parameter": [
+        "headerParameters": {
+          "parameters": [
             {
               "name": "Authorization",
               "value": "Bearer re_placeholder_key"
@@ -389,26 +389,9 @@
             }
           ]
         },
-        "bodyParametersUi": {
-          "parameter": [
-            {
-              "name": "from",
-              "value": "Legal Analyzer <notifications@yourdomain.com>"
-            },
-            {
-              "name": "to",
-              "value": "user@example.com"
-            },
-            {
-              "name": "subject",
-              "value": "=Document Analysis Complete: {{ $json.filename }}"
-            },
-            {
-              "name": "html",
-              "value": "=Your contract analysis for <strong>{{ $json.filename }}</strong> is ready.<br/>Safety Score: {{ $json.safety_score }}<br/><a href=\"http://localhost:3000/dashboard/documents/{{ $json.document_id }}\">View Analysis Dashboard</a>"
-            }
-          ]
-        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"from\": \"Legal Analyzer <notifications@yourdomain.com>\",\n  \"to\": \"{{ $json.email }}\",\n  \"subject\": \"Document Analysis Complete: {{ $json.filename }}\",\n  \"html\": \"Your contract analysis for <strong>{{ $json.filename }}</strong> is ready.<br/>Safety Score: {{ $json.safety_score }}<br/><a href=\\\"http://localhost:3000/dashboard/documents/{{ $json.document_id }}\\\">View Analysis Dashboard</a>\"\n}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -448,7 +431,7 @@
           "parameters": [
             {
               "name": "X-Internal-Token",
-              "value": "543ca686b71f4d55993848283eebe0b8d2338019e9683bd3201129e32f56bf9f"
+              "value": "placeholder_internal_service_token"
             }
           ]
         },
@@ -549,7 +532,7 @@
           "parameters": [
             {
               "name": "X-Internal-Token",
-              "value": "543ca686b71f4d55993848283eebe0b8d2338019e9683bd3201129e32f56bf9f"
+              "value": "placeholder_internal_service_token"
             }
           ]
         },
