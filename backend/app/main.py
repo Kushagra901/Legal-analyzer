@@ -10,7 +10,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
-from app.api.v1.routers import admin, auth, documents, reports
+from app.api.v1.routers import admin, auth, documents, reports, system
 from app.core.config import settings
 from app.core.limiter import limiter
 from app.core.security_headers import SecurityHeadersMiddleware
@@ -48,6 +48,7 @@ app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
 app.include_router(documents.router, prefix="/api/v1/documents", tags=["Documents"])
 app.include_router(reports.router, prefix="/api/v1/reports", tags=["Reports"])
 app.include_router(admin.router, prefix="/api/v1/admin", tags=["Administration"])
+app.include_router(system.router, prefix="/api/v1/system", tags=["System"])
 
 
 @app.get("/health", response_model=HealthResponse)
