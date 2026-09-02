@@ -1,7 +1,6 @@
-import json
 import logging
-import uuid
 import re
+import uuid
 
 from app.services.llm_service import LLMService
 
@@ -20,7 +19,7 @@ class DeepExtractionService:
         """
         sanitized_text = self.llm_service._sanitize_input(text)
         doc_hash = uuid.uuid4().hex[:12]
-        
+
         system_instruction = (
             "You are a senior legal analyst. Perform a deep structural extraction of the provided legal document. "
             "Identify key deal terms, core obligations, severe risk flags, missing standard protections, and provide "
@@ -106,7 +105,7 @@ Return strictly a valid JSON object matching the requested schema.
             },
             "required": ["deal_terms", "obligations", "risk_flags", "missing_protections", "redline_suggestions", "executive_summary", "confidence"]
         }
-        
+
         # Tier 1: Claude API
         if self.llm_service.anthropic_api_key:
             try:
@@ -137,7 +136,7 @@ Return strictly a valid JSON object matching the requested schema.
         Rule-based keyword matching parser to serve as a high-reliability offline fallback.
         """
         deal_terms = {}
-        
+
         gov_match = re.search(r"(?:governing law|jurisdiction|applicable law|governed by)[^\.\n]*?(?:laws of|courts of)?\s*([A-Za-z\s]+)", text, re.IGNORECASE)
         if gov_match:
             deal_terms["governing_law"] = gov_match.group(0).strip()[:100]
@@ -165,7 +164,7 @@ Return strictly a valid JSON object matching the requested schema.
             "executive_summary": "Offline rule-based fallback analysis. Real LLM analysis was not performed.",
             "confidence": "LOW"
         }
-        
+
     def _is_valid_deep_extraction(self, data: dict) -> bool:
         """
         Validate that parsed JSON matches the required deep extraction analysis schema.

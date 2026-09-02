@@ -4,11 +4,10 @@ Unit and Integration tests for PDF and DOCX report generation, storage persisten
 and /report export endpoints using sample NDA contract data.
 """
 import io
-import json
 import os
 import sys
 import uuid
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import docx
 import fitz  # PyMuPDF
@@ -19,20 +18,18 @@ from sqlalchemy.orm import Session
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.core.auth import get_current_user
-from app.core.database import Base, get_db
+from app.core.database import get_db
 from app.main import app
 from app.models.database_models import (
     Clause,
     ComplianceCheck,
     Document,
-    ExtractedText,
     LegalReference,
     Report,
     RiskFlag,
     User,
 )
 from app.services.report_generator_service import ReportGeneratorService
-from app.services.storage_service import StorageService
 
 
 @pytest.fixture

@@ -1,7 +1,6 @@
-import json
 import logging
-import uuid
 import re
+import uuid
 
 from app.services.llm_service import LLMService
 
@@ -20,9 +19,9 @@ class ChatService:
         """
         sanitized_query = self.llm_service._sanitize_input(query)
         doc_hash = uuid.uuid4().hex[:12]
-        
+
         context_str = self._build_context(clauses)
-        
+
         system_instruction = (
             "You are a legal AI assistant designed to answer questions about a specific document. "
             "You will be provided with document metadata and relevant text snippets (clauses). "
@@ -66,7 +65,7 @@ Return strictly a valid JSON object matching the requested schema.
             },
             "required": ["answer", "citations", "confidence", "disclaimer"]
         }
-        
+
         # Tier 1: Claude API
         if self.llm_service.anthropic_api_key:
             try:
@@ -105,7 +104,7 @@ Return strictly a valid JSON object matching the requested schema.
             ctext = clause.get("clause_text", "")
             context_parts.append(f"Clause Type: {ctype}\nText: {ctext}\n")
         return "\n".join(context_parts)
-        
+
     def _search_clauses_by_keywords(self, query: str, clauses: list[dict]) -> list[dict]:
         """
         Basic keyword matching to find relevant clauses from the full list (returns top 5 matches).
@@ -119,7 +118,7 @@ Return strictly a valid JSON object matching the requested schema.
                 if kw in searchable or (len(kw) > 4 and kw[:4] in searchable):
                     score += 1
             scored_clauses.append((score, clause))
-            
+
         scored_clauses.sort(key=lambda x: x[0], reverse=True)
         matched = [c for score, c in scored_clauses if score > 0]
         return matched[:5] if matched else clauses[:5]

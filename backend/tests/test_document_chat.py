@@ -3,7 +3,6 @@
 Unit and integration tests for Grounded Document Chat Service and Endpoints.
 Tests prompt grounding, citation resolution, chat history persistence, and audit logging.
 """
-import json
 import os
 import sys
 import uuid

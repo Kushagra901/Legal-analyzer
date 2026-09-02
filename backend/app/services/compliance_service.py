@@ -3,6 +3,7 @@ Compliance Service.
 Performs rules audit checks against company templates and auto-detects rule-sets.
 """
 import logging
+
 from app.services.llm_service import LLMService
 
 logger = logging.getLogger(__name__)

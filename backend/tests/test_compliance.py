@@ -285,12 +285,14 @@ def test_compliance_endpoint_auto_detection_and_internal_token():
     3. Persists results to compliance_checks table and audit log.
     """
     import uuid
+
     from fastapi.testclient import TestClient
-    from app.main import app
-    from app.core.database import SessionLocal
-    from app.models.database_models import Document, ExtractedText, ComplianceCheck, AuditLog
+
     from app.api.v1.routers.documents import ensure_test_user_exists
     from app.core.config import settings
+    from app.core.database import SessionLocal
+    from app.main import app
+    from app.models.database_models import AuditLog, ComplianceCheck, Document, ExtractedText
 
     client = TestClient(app)
     db = SessionLocal()
