@@ -160,8 +160,8 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $json.document_id }}/analyze",
+        "method": "GET",
+        "url": "=http://host.docker.internal:8000/api/v1/system/ollama-status?document_id={{ $json.document_id || $('HTTP Request (Get Doc Info)').first().json.document_id || $('Webhook (Document Uploaded)').first().json.body.document_id }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -176,8 +176,78 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
-        1400,
+        1380,
         300
+      ],
+      "id": "check-ollama-status",
+      "name": "HTTP Request (Check Ollama Status)",
+      "onError": "continueRegularOutput",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.healthy }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1520,
+        300
+      ],
+      "id": "check-ollama-healthy",
+      "name": "IF (Ollama Healthy?)"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $json.document_id || $('HTTP Request (Get Doc Info)').first().json.document_id || $('Webhook (Document Uploaded)').first().json.body.document_id }}/agent-analyze",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Internal-Token",
+              "value": "placeholder_internal_service_token"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1680,
+        200
+      ],
+      "id": "run-agent-analysis",
+      "name": "HTTP Request (Agent Analyze)"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $json.document_id || $('HTTP Request (Get Doc Info)').first().json.document_id || $('Webhook (Document Uploaded)').first().json.body.document_id }}/analyze",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Internal-Token",
+              "value": "placeholder_internal_service_token"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1680,
+        420
       ],
       "id": "run-llm-analysis",
       "name": "HTTP Request (LLM Clause Analysis)"
@@ -635,7 +705,7 @@
       "main": [
         [
           {
-            "node": "HTTP Request (LLM Clause Analysis)",
+            "node": "HTTP Request (Check Ollama Status)",
             "type": "main",
             "index": 0
           }
@@ -653,7 +723,47 @@
       "main": [
         [
           {
+            "node": "HTTP Request (Check Ollama Status)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request (Check Ollama Status)": {
+      "main": [
+        [
+          {
+            "node": "IF (Ollama Healthy?)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF (Ollama Healthy?)": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request (Agent Analyze)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
             "node": "HTTP Request (LLM Clause Analysis)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request (Agent Analyze)": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request (Calculate Risk Score)",
             "type": "main",
             "index": 0
           }

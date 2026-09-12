@@ -11,7 +11,6 @@ from app.models import (
     Clause,
     ComplianceCheck,
     Document,
-    DocumentChunk,
     ExtractedText,
     LegalReference,
     RiskFlag,

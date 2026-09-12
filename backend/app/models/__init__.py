@@ -3,6 +3,7 @@ Models package initialization.
 Contains database schema tables, pydantic entities, and ORM objects.
 """
 from app.models.database_models import (
+    GUID,
     AuditLog,
     AutomationRun,
     ChatMessage,
@@ -13,7 +14,6 @@ from app.models.database_models import (
     Document,
     DocumentChunk,
     ExtractedText,
-    GUID,
     LegalReference,
     Notification,
     Organization,

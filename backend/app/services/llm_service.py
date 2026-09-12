@@ -348,6 +348,18 @@ Analyze this text and extract:
 Return strictly a valid JSON object matching the schema.
 """
 
+        # Tier 0: Ollama Local API (checked first if OLLAMA_BASE_URL is set and healthy)
+        from app.services.ollama_service import OllamaService
+        if OllamaService.check_health():
+            try:
+                ollama_prompt = f"{system_instruction}\n\n{user_content}"
+                result = OllamaService._generate_json_with_retry(ollama_prompt)
+                if self._is_valid_contract_schema(result):
+                    return self._validate_and_calibrate_scores(result, sanitized_text)
+                logger.error("Ollama response missing required schema fields. Falling back to next tier.")
+            except Exception as e:
+                logger.error(f"Ollama API failed: {e}. Falling back to next tier.")
+
         # Tier 1: Claude API
         if self.anthropic_api_key:
             try:
@@ -706,7 +718,6 @@ Return strictly a valid JSON object with a 'violations' array.
             key_points = ["Premises description & rental payments", "Maintenance & insurance allocation", "Default remedies & renewal options"]
         else:
             doc_type = "Commercial Agreement"
-            clean_lines = [line.strip() for line in text.split("\n") if len(line.strip()) > 20]
             summary = f"This {doc_type} establishes binding terms and legal obligations between the participating parties. It governs key operational commitments, standard liability provisions, and dispute resolution mechanisms. Both parties agree to abide by the specified conditions and governing statutory requirements."
             key_points = ["Binding commercial terms", "Operational & liability allocation", "Standard dispute resolution"]
 

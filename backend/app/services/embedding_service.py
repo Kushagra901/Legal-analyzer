@@ -8,7 +8,6 @@ import json
 import logging
 import math
 import uuid
-from typing import List
 
 import httpx
 from sqlalchemy import text
@@ -107,8 +106,6 @@ class EmbeddingService:
         from text when API key is not configured or in offline test environments.
         """
         hash_digest = hashlib.sha512(text.encode("utf-8")).digest()
-        extended_digest = hashlib.sha512(hash_digest).digest()
-        combined = hash_digest + extended_digest  # 128 bytes
 
         # Generate 768 floats from hashing rounds
         raw_vals = []
@@ -171,8 +168,8 @@ class EmbeddingService:
         Generate embeddings for a list of text chunks.
         """
         embeddings = []
-        for text in texts:
-            emb = self.generate_embedding(text)
+        for item in texts:
+            emb = self.generate_embedding(item)
             embeddings.append(emb)
         return embeddings
 
@@ -308,7 +305,7 @@ class EmbeddingService:
             if not emb or not isinstance(emb, (list, tuple)):
                 emb = self._generate_fallback_embedding(c.chunk_text)
 
-            dot_prod = sum(a * b for a, b in zip(query_vec, emb))
+            dot_prod = sum(a * b for a, b in zip(query_vec, emb, strict=False))
             norm_q = math.sqrt(sum(a * a for a in query_vec)) or 1.0
             norm_c = math.sqrt(sum(b * b for b in emb)) or 1.0
             sim = dot_prod / (norm_q * norm_c)

@@ -3,7 +3,6 @@
 Unit and integration tests for Deep Extraction Service and Endpoint.
 Tests prompt structure, fallback tiers, schema validation, and database caching.
 """
-import json
 import os
 import sys
 import uuid

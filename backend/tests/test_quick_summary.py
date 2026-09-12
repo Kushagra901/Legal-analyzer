@@ -3,7 +3,6 @@ Unit and integration tests for POST /api/v1/documents/{document_id}/quick-summar
 Validates immediate fast overview generation, persistence, audit logging, and tenant isolation.
 """
 import uuid
-from unittest.mock import patch
 
 import pytest
 from fastapi import Depends, Request

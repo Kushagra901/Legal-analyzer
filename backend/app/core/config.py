@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     SUPABASE_SERVICE_ROLE_KEY: str = ""
     GEMINI_API_KEY: str = ""
     ANTHROPIC_API_KEY: str = ""
+    OLLAMA_BASE_URL: str = ""
+    OLLAMA_MODEL: str = "qwen3:8b"
     SECRET_KEY: str = "placeholder_secret_key_change_me_in_production"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24 hours

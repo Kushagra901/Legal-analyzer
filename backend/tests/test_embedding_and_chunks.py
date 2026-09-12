@@ -6,7 +6,6 @@ and document_chunks + chat_messages database tables.
 import os
 import sys
 import uuid
-from unittest.mock import MagicMock, patch
 
 import pytest
 from sqlalchemy import create_engine
@@ -19,14 +18,11 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.core.database import Base
 from app.models.database_models import (
     ChatMessage,
-    Clause,
     Document,
     DocumentChunk,
-    ExtractedText,
     User,
 )
 from app.services.embedding_service import EmbeddingService
-
 
 # Setup in-memory SQLite database for test execution
 engine = create_engine(
