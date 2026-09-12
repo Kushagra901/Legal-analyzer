@@ -112,6 +112,20 @@ copy .env.example .env.local
 npm run dev
 ```
 
+### One-Command Local Launch (Windows PowerShell)
+
+Once the initial setup is complete, you can start the entire local stack with one command from the project root:
+
+```powershell
+.\start-all.ps1
+```
+
+This script:
+1. **Checks Ollama:** Verifies `http://localhost:11434` is active, or launches `ollama serve` in a new window if it isn't running.
+2. **Starts Backend:** Opens a new window, activates `backend\.venv`, and starts FastAPI (`uvicorn app.main:app --reload` on `http://localhost:8000`).
+3. **Starts Frontend:** Opens a new window and starts Next.js (`npm run dev` on `http://localhost:3000`).
+4. **Health Check Summary:** Waits a few seconds for services to initialize, tests each health endpoint, and prints a status table.
+
 Visit `http://localhost:3000`. **Important:** without a `GEMINI_API_KEY` set, analysis falls back to an offline rule-based parser — fine for exploring the UI, not representative of real output quality.
 
 ## Detailed Usage
