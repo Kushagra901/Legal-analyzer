@@ -19,6 +19,7 @@ from fastapi import (
 )
 from pydantic import BaseModel
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_accessible_document, get_current_user
@@ -642,28 +643,25 @@ def run_agent_analysis(
 
     for idx, chunk_text in enumerate(chunks):
         # 4. Risk Analysis per chunk
-        if ollama_healthy:
-            try:
-                risk_info = OllamaService.analyze_clause_risk(chunk_text)
-            except Exception as e:
-                print(f"Risk analysis per chunk failed ({e}), falling back.")
-                risk_info = {
-                    "type": f"Clause {idx + 1}",
-                    "severity": "LOW",
-                    "explanation": "",
-                    "issue": "",
-                    "confidence_score": 0.85
-                }
-        else:
-            is_risky = any(w in chunk_text.lower() for w in ["indemnif", "unlimited", "liquidated damages", "sole discretion"])
-            severity = "HIGH" if "unlimited" in chunk_text.lower() else ("MEDIUM" if is_risky else "LOW")
-            risk_info = {
-                "type": f"Clause {idx + 1}",
+        def _get_rule_based_risk(chunk: str, chunk_idx: int) -> dict:
+            is_risky = any(w in chunk.lower() for w in ["indemnif", "unlimited", "liquidated damages", "sole discretion"])
+            severity = "HIGH" if "unlimited" in chunk.lower() else ("MEDIUM" if is_risky else "LOW")
+            return {
+                "type": f"Clause {chunk_idx + 1}",
                 "severity": severity,
                 "explanation": "Flagged by automated rule analysis." if is_risky else "",
                 "issue": "Legal risk identified." if is_risky else "",
                 "confidence_score": 0.85
             }
+
+        if ollama_healthy:
+            try:
+                risk_info = OllamaService.analyze_clause_risk(chunk_text)
+            except Exception as e:
+                print(f"Risk analysis per chunk failed ({e}), falling back.")
+                risk_info = _get_rule_based_risk(chunk_text, idx)
+        else:
+            risk_info = _get_rule_based_risk(chunk_text, idx)
 
         clause_type = str(risk_info.get("type") or f"Clause {idx + 1}")
         db_clause = Clause(
@@ -1152,21 +1150,10 @@ def run_deep_extraction(
 ) -> DeepExtractionResponse:
     """
     Perform deep structured extraction of deal terms and obligations.
+    Idempotent: updates the existing DeepExtraction record if already present,
+    or creates a new one if not.
     """
     doc = get_accessible_document(db, document_id, current_user)
-
-    existing = db.query(DeepExtraction).filter(DeepExtraction.document_id == doc.id).first()
-    if existing:
-        return DeepExtractionResponse(
-            document_id=str(existing.document_id),
-            deal_terms=existing.deal_terms,
-            obligations=existing.obligations,
-            risk_flags=existing.risk_flags,
-            missing_protections=existing.missing_protections,
-            redline_suggestions=existing.redline_suggestions,
-            executive_summary=existing.executive_summary or "",
-            confidence=existing.confidence
-        )
 
     extracted_text_obj = db.query(ExtractedText).filter(ExtractedText.document_id == doc.id).first()
     extracted_text = extracted_text_obj.content if extracted_text_obj else ""
@@ -1174,25 +1161,68 @@ def run_deep_extraction(
     deep_extraction_service = DeepExtractionService()
     extraction = deep_extraction_service.extract_deep(extracted_text)
 
-    db_deep_extraction = DeepExtraction(
-        id=uuid.uuid4(),
-        document_id=doc.id,
-        deal_terms=extraction.get("deal_terms", {}),
-        obligations=extraction.get("obligations", []),
-        risk_flags=extraction.get("risk_flags", []),
-        missing_protections=extraction.get("missing_protections", []),
-        redline_suggestions=extraction.get("redline_suggestions", []),
-        executive_summary=extraction.get("executive_summary", ""),
-        confidence=extraction.get("confidence", "MEDIUM")
-    )
-    db.add(db_deep_extraction)
+    existing = db.query(DeepExtraction).filter(DeepExtraction.document_id == doc.id).first()
+    if existing:
+        existing.deal_terms = extraction.get("deal_terms", {})
+        existing.obligations = extraction.get("obligations", [])
+        existing.risk_flags = extraction.get("risk_flags", [])
+        existing.missing_protections = extraction.get("missing_protections", [])
+        existing.redline_suggestions = extraction.get("redline_suggestions", [])
+        existing.executive_summary = extraction.get("executive_summary", "")
+        existing.confidence = extraction.get("confidence", "MEDIUM")
+        db_deep_extraction = existing
+    else:
+        db_deep_extraction = DeepExtraction(
+            id=uuid.uuid4(),
+            document_id=doc.id,
+            deal_terms=extraction.get("deal_terms", {}),
+            obligations=extraction.get("obligations", []),
+            risk_flags=extraction.get("risk_flags", []),
+            missing_protections=extraction.get("missing_protections", []),
+            redline_suggestions=extraction.get("redline_suggestions", []),
+            executive_summary=extraction.get("executive_summary", ""),
+            confidence=extraction.get("confidence", "MEDIUM")
+        )
+        db.add(db_deep_extraction)
 
     audit_log = AuditLog(
         document_id=doc.id,
         action=f"Deep extraction performed on document: {doc.filename}"
     )
     db.add(audit_log)
-    db.commit()
+
+    try:
+        db.commit()
+        db.refresh(db_deep_extraction)
+    except IntegrityError:
+        db.rollback()
+        # Fallback to handle concurrent insertion race conditions safely
+        existing = db.query(DeepExtraction).filter(DeepExtraction.document_id == doc.id).first()
+        if existing:
+            existing.deal_terms = extraction.get("deal_terms", {})
+            existing.obligations = extraction.get("obligations", [])
+            existing.risk_flags = extraction.get("risk_flags", [])
+            existing.missing_protections = extraction.get("missing_protections", [])
+            existing.redline_suggestions = extraction.get("redline_suggestions", [])
+            existing.executive_summary = extraction.get("executive_summary", "")
+            existing.confidence = extraction.get("confidence", "MEDIUM")
+            audit_log = AuditLog(
+                document_id=doc.id,
+                action=f"Deep extraction updated on document: {doc.filename}"
+            )
+            db.add(audit_log)
+            try:
+                db.commit()
+                db.refresh(existing)
+                db_deep_extraction = existing
+            except Exception:
+                db.rollback()
+                raise
+        else:
+            raise
+    except Exception:
+        db.rollback()
+        raise
 
     return DeepExtractionResponse(
         document_id=str(db_deep_extraction.document_id),

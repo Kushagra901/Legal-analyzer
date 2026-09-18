@@ -15,4 +15,6 @@ CREATE TABLE IF NOT EXISTS public.deep_extractions (
     UNIQUE(document_id)
 );
 
-CREATE INDEX idx_deep_extractions_document ON public.deep_extractions(document_id);
+CREATE INDEX IF NOT EXISTS idx_deep_extractions_document ON public.deep_extractions(document_id);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.deep_extractions TO anon, authenticated, service_role;

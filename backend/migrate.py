@@ -23,6 +23,7 @@ def load_env(env_path):
                 env_vars[key] = val
     return env_vars
 
+
 def main():
     # Set CWD to the directory containing migrate.py
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -49,14 +50,15 @@ def main():
         except Exception as e:
             print(f"Warning: Could not parse database URL for pooler mapping: {e}")
 
-    migration_file = os.path.join(script_dir, "migrations", "0001_initial_schema.sql")
-    if not os.path.exists(migration_file):
-        print(f"Error: Migration file not found at {migration_file}")
+    migrations_dir = os.path.join(script_dir, "migrations")
+    if not os.path.exists(migrations_dir):
+        print(f"Error: Migrations directory not found at {migrations_dir}")
         sys.exit(1)
 
-    print(f"Reading migration file from: {migration_file}")
-    with open(migration_file, encoding="utf-8") as f:
-        migration_sql = f.read()
+    sql_files = sorted([f for f in os.listdir(migrations_dir) if f.endswith(".sql")])
+    if not sql_files:
+        print(f"Error: No SQL migration files found in {migrations_dir}")
+        sys.exit(1)
 
     print("Connecting to Supabase Database...")
     try:
@@ -64,10 +66,14 @@ def main():
         conn.autocommit = False # Run in transaction
         cursor = conn.cursor()
 
-        print("Executing migration SQL...")
-        cursor.execute(migration_sql)
-        conn.commit()
-        print("Migration executed and committed successfully!")
+        for f_name in sql_files:
+            file_path = os.path.join(migrations_dir, f_name)
+            print(f"\nApplying migration: {f_name}")
+            with open(file_path, encoding="utf-8") as f:
+                migration_sql = f.read()
+            cursor.execute(migration_sql)
+            conn.commit()
+            print(f"  -> {f_name} applied successfully.")
 
         # Verify schema by listing tables and columns
         print("\nVerifying schema in public namespace:")

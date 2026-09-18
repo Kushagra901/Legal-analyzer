@@ -422,7 +422,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "WITH updated AS (UPDATE public.automation_runs SET status = 'completed' WHERE document_id = '{{ $json.document_id }}'::uuid AND workflow_name = 'Legal Analyzer Pipeline' RETURNING document_id, status) SELECT d.id AS document_id, d.filename, d.safety_score, u.status, COALESCE(usr.email, '{{ $('Webhook (Document Uploaded)').first().json.body.email }}', '') AS email FROM updated u JOIN public.documents d ON d.id = u.document_id LEFT JOIN public.users usr ON usr.id = d.user_id;",
+        "query": "WITH updated_doc AS (UPDATE public.documents SET status = 'completed' WHERE id = '{{ $json.document_id }}'::uuid RETURNING id, filename, safety_score, user_id), updated_run AS (UPDATE public.automation_runs SET status = 'completed' WHERE document_id = '{{ $json.document_id }}'::uuid AND workflow_name = 'Legal Analyzer Pipeline' RETURNING document_id, status) SELECT d.id AS document_id, d.filename, d.safety_score, u.status, COALESCE(usr.email, '{{ $('Webhook (Document Uploaded)').first().json.body.email }}', '') AS email FROM updated_run u JOIN updated_doc d ON d.id = u.document_id LEFT JOIN public.users usr ON usr.id = d.user_id;",
         "additionalFields": {}
       },
       "type": "n8n-nodes-base.postgres",
