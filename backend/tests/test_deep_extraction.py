@@ -197,8 +197,17 @@ def test_deep_extraction_endpoint():
         assert len(data["risk_flags"]) == 1
         assert len(data["redline_suggestions"]) == 1
 
-        # Test caching: Second call returns cached record without re-extracting
-        with patch.object(DeepExtractionService, "extract_deep", side_effect=Exception("Should not be called")):
-            cached_res = client.post(f"/api/v1/documents/{doc_id}/deep-extract")
-            assert cached_res.status_code == 200
-            assert cached_res.json()["document_id"] == str(doc_id)
+        # Test idempotency: Second call re-extracts and updates the existing record without duplicate key error
+        updated_mock = dict(MOCK_DEEP_EXTRACTION_SUCCESS)
+        updated_mock["executive_summary"] = "Updated executive summary prose."
+        with patch.object(DeepExtractionService, "extract_deep", return_value=updated_mock):
+            second_res = client.post(f"/api/v1/documents/{doc_id}/deep-extract")
+            assert second_res.status_code == 200
+            assert second_res.json()["document_id"] == str(doc_id)
+            assert second_res.json()["executive_summary"] == "Updated executive summary prose."
+
+        # Verify exactly one row exists in the database for doc_id
+        verify_db = TestingSessionLocal()
+        total_records = verify_db.query(DeepExtraction).filter(DeepExtraction.document_id == doc_id).count()
+        verify_db.close()
+        assert total_records == 1
