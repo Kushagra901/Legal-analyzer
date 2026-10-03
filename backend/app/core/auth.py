@@ -3,7 +3,8 @@ Authentication utilities for Supabase.
 Handles verifying JWT access tokens and managing user sessions.
 Supports X-Internal-Token for internal service bypass.
 """
-
+import hmac
+import logging
 import uuid
 
 from fastapi import Depends, HTTPException, Request, status
@@ -17,6 +18,7 @@ from app.models import Document, Organization, User
 
 # Disable auto_error so we can manually handle absent user-JWTs when X-Internal-Token is provided
 security_scheme = HTTPBearer(auto_error=False)
+logger = logging.getLogger(__name__)
 
 
 def get_supabase_client() -> Client | None:
@@ -43,7 +45,9 @@ def get_current_user(
     # 1. Inspect for internal service header authentication
     internal_token = request.headers.get("x-internal-token")
     if internal_token is not None:
-        if not settings.INTERNAL_SERVICE_TOKEN or internal_token != settings.INTERNAL_SERVICE_TOKEN:
+        if not settings.INTERNAL_SERVICE_TOKEN or not hmac.compare_digest(
+            internal_token, settings.INTERNAL_SERVICE_TOKEN
+        ):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid internal service token."
@@ -68,7 +72,14 @@ def get_current_user(
     token = credentials.credentials
 
     # Fallback to local dev / test mock user if Supabase is unconfigured or token is a mock token
-    if token in ("test-token", "mock-token", settings.AUTH_MOCK_TOKEN) or supabase_client is None:
+    is_mock_token = token in ("test-token", "mock-token", settings.AUTH_MOCK_TOKEN)
+    if is_mock_token or supabase_client is None:
+        if settings.ENVIRONMENT.lower() == "production":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Mock authentication is strictly disabled in production."
+            )
+        logger.warning("Mock authentication active for request in %s environment.", settings.ENVIRONMENT)
         test_uuid = uuid.UUID("00000000-0000-0000-0000-000000000000")
         org = db.query(Organization).filter(Organization.id == test_uuid).first()
         if not org:

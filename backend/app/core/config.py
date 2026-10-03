@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     )
 
     PROJECT_NAME: str = "Legal Analyzer"
+    ENVIRONMENT: str = "development"
     API_V1_STR: str = "/api/v1"
     DATABASE_URL: str = "postgresql://postgres:postgres@localhost:5432/legal"
     SUPABASE_URL: str = ""
@@ -35,6 +36,36 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379/0"
     CELERY_BROKER_URL: str = "redis://localhost:6379/0"
     SENTRY_DSN: str = ""
+
+    # Kafka Event Streaming
+    KAFKA_BOOTSTRAP_SERVERS: str = "localhost:9092"
+    KAFKA_TOPIC_PREFIX: str = "legal-analyzer"
+
+    # Databricks / Lakehouse
+    DATABRICKS_HOST: str = ""
+    DATABRICKS_TOKEN: str = ""
+    DATABRICKS_CATALOG: str = "legal_analyzer"
+
+    # SQL Server (optional secondary database)
+    SQL_SERVER_CONNECTION_STRING: str = ""
+
+    def validate_production_secrets(self) -> None:
+        """
+        Validates that critical security secrets are not left as defaults in production.
+        Raises RuntimeError if default placeholders or empty values are detected.
+        """
+        if self.ENVIRONMENT.lower() == "production":
+            insecure_secrets = []
+            if self.SECRET_KEY in ("", "placeholder_secret_key_change_me_in_production"):
+                insecure_secrets.append("SECRET_KEY")
+            if self.INTERNAL_SERVICE_TOKEN in ("", "placeholder_internal_service_token_change_me"):
+                insecure_secrets.append("INTERNAL_SERVICE_TOKEN")
+            if insecure_secrets:
+                raise RuntimeError(
+                    f"FATAL: Production launch halted. Insecure default secrets detected: {', '.join(insecure_secrets)}. "
+                    "Generate 256-bit random keys using: python -c 'import secrets; print(secrets.token_hex(32))'"
+                )
+
 
 
 

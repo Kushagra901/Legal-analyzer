@@ -11,6 +11,9 @@ services:
       - "8000:8000"
     env_file:
       - ./backend/.env
+    depends_on:
+      - redis
+      - kafka
 
   n8n:
     image: n8nio/n8n:latest
@@ -26,6 +29,58 @@ services:
     volumes:
       - n8n_data:/home/node/.n8n
 
+  # Redis — Celery broker and result backend
+  redis:
+    image: redis:7-alpine
+    container_name: legal_analyzer_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  # Celery worker — background document analysis tasks
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: legal_analyzer_celery
+    restart: unless-stopped
+    command: celery -A app.workers.celery_app worker --loglevel=info --concurrency=2
+    env_file:
+      - ./backend/.env
+    depends_on:
+      - redis
+
+  # Apache Kafka — event streaming for document lifecycle events
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: legal_analyzer_zookeeper
+    restart: unless-stopped
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: legal_analyzer_kafka
+    restart: unless-stopped
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+
 volumes:
   n8n_data:
     external: true
+  redis_data:

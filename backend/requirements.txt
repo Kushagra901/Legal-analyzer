@@ -24,4 +24,11 @@ anthropic>=0.18.0
 sentry-sdk[fastapi]>=2.0.0
 reportlab>=4.0.0
 pgvector>=0.2.5
+alembic>=1.13.0
 
+# --- Data Engineering & Analytics ---
+pyspark>=3.5.0
+confluent-kafka>=2.3.0
+
+# --- Database Connectivity (SQL Server) ---
+pyodbc>=5.1.0
