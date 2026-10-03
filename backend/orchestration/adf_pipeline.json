@@ -1,0 +1,140 @@
+{
+    "name": "LegalAnalyzer_Medallion_Pipeline",
+    "properties": {
+        "activities": [
+            {
+                "name": "CopyFromPostgresToStaging",
+                "type": "Copy",
+                "dependsOn": [],
+                "policy": {
+                    "timeout": "01:00:00",
+                    "retry": 3,
+                    "retryIntervalInSeconds": 30
+                },
+                "typeProperties": {
+                    "source": {
+                        "type": "PostgreSqlSource",
+                        "query": "SELECT * FROM documents WHERE status = 'uploaded'"
+                    },
+                    "sink": {
+                        "type": "AzureBlobFSWriteSettings",
+                        "copyBehavior": "PreserveHierarchy"
+                    }
+                },
+                "inputs": [
+                    {
+                        "referenceName": "PostgresSourceDataset",
+                        "type": "DatasetReference"
+                    }
+                ],
+                "outputs": [
+                    {
+                        "referenceName": "ADLSStagingDataset",
+                        "type": "DatasetReference"
+                    }
+                ]
+            },
+            {
+                "name": "RunBronzeIngestion",
+                "type": "DatabricksNotebook",
+                "dependsOn": [
+                    {
+                        "activity": "CopyFromPostgresToStaging",
+                        "dependencyConditions": ["Succeeded"]
+                    }
+                ],
+                "policy": {
+                    "timeout": "01:00:00",
+                    "retry": 1
+                },
+                "typeProperties": {
+                    "notebookPath": "/Workspace/backend/databricks/document_analysis_notebook",
+                    "baseParameters": {
+                        "layer": "bronze"
+                    }
+                },
+                "linkedServiceName": {
+                    "referenceName": "DatabricksLinkedService",
+                    "type": "LinkedServiceReference"
+                }
+            },
+            {
+                "name": "RunSilverTransformation",
+                "type": "DatabricksNotebook",
+                "dependsOn": [
+                    {
+                        "activity": "RunBronzeIngestion",
+                        "dependencyConditions": ["Succeeded"]
+                    }
+                ],
+                "policy": {
+                    "timeout": "02:00:00",
+                    "retry": 1
+                },
+                "typeProperties": {
+                    "notebookPath": "/Workspace/backend/databricks/document_analysis_notebook",
+                    "baseParameters": {
+                        "layer": "silver"
+                    }
+                },
+                "linkedServiceName": {
+                    "referenceName": "DatabricksLinkedService",
+                    "type": "LinkedServiceReference"
+                }
+            },
+            {
+                "name": "RunGoldAggregation",
+                "type": "DatabricksNotebook",
+                "dependsOn": [
+                    {
+                        "activity": "RunSilverTransformation",
+                        "dependencyConditions": ["Succeeded"]
+                    }
+                ],
+                "policy": {
+                    "timeout": "01:00:00",
+                    "retry": 1
+                },
+                "typeProperties": {
+                    "notebookPath": "/Workspace/backend/databricks/document_analysis_notebook",
+                    "baseParameters": {
+                        "layer": "gold"
+                    }
+                },
+                "linkedServiceName": {
+                    "referenceName": "DatabricksLinkedService",
+                    "type": "LinkedServiceReference"
+                }
+            },
+            {
+                "name": "NotifyCompletionWebhook",
+                "type": "WebHook",
+                "dependsOn": [
+                    {
+                        "activity": "RunGoldAggregation",
+                        "dependencyConditions": ["Succeeded"]
+                    }
+                ],
+                "typeProperties": {
+                    "url": "https://api.legalanalyzer.com/v1/webhooks/pipeline-complete",
+                    "method": "POST",
+                    "body": {
+                        "pipeline": "MedallionPipeline",
+                        "status": "Success",
+                        "runId": "@{pipeline().RunId}"
+                    }
+                }
+            }
+        ],
+        "parameters": {
+            "environment": {
+                "type": "String",
+                "defaultValue": "prod"
+            }
+        },
+        "variables": {},
+        "annotations": ["legal", "medallion", "lakehouse"]
+    },
+    "type": "Microsoft.DataFactory/factories/pipelines",
+    "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#"
+}

@@ -59,6 +59,16 @@ This is an active MVP, not a finished product — several pieces (real OCR, real
 - Full audit logging of every document action
 - Database auto-switching: SQLite locally, Postgres/Supabase in production, zero config changes
 - Admin view of audit logs
+- **PySpark batch analytics** — risk distribution, clause frequency, temporal trends over the document corpus
+- **Apache Kafka event streaming** — decoupled document lifecycle events (uploaded → processing → completed → failed)
+- **Star schema data modelling** — dimensional model with fact tables, SCD Type 2 tracking for document re-analysis history
+- **SQL window functions** — rolling averages, rank/dense_rank, LAG/LEAD, cumulative sums, NTILE quartiles via PostgreSQL analytics views
+- **Lakehouse / Delta Lake architecture** — medallion pattern (Bronze → Silver → Gold) with Databricks notebook and Unity Catalog config
+- **Orchestration pipelines** — Azure Data Factory JSON template + Apache Airflow DAG for the same workflow
+- **MCP server** — Model Context Protocol endpoint exposing document data as LLM-queryable tools/resources
+- **Data quality governance** — automated validation of text extraction, clause quality, embedding dimensions, risk score consistency
+- **Multi-database connectivity** — PostgreSQL (primary), Redis (cache/broker), SQL Server (optional), pgvector (vector store)
+
 
 ## Demo / Screenshots
 
@@ -169,31 +179,140 @@ Default ports: backend `8000`, frontend `3000`. Production recommendation: set `
 ## Architecture & File Structure
 
 ```
-/frontend/app          -> routes: (auth), (dashboard)/{dashboard,documents/[id],reports/[id],admin}
-/frontend/components    -> ui/ (primitives), documents/, reports/
-/backend/app/api/v1     -> routers: auth, documents, reports, admin
-/backend/app/services   -> ocr_service, llm_service, risk_service, compliance_service
-/backend/app/models     -> SQLAlchemy models + Pydantic schemas
-/backend/app/core       -> config, database, security, logging
-/docs                   -> architecture and design documentation
+/frontend
+  /app                  → routes: (auth), (dashboard)/{dashboard,documents/[id],reports/[id],admin,review}
+  /components           → ui/ (primitives), documents/, reports/
+  /lib                  → api/, hooks/, supabase/
+
+/backend
+  /app
+    /api/v1/routers     → auth, documents, reports, admin, system, analytics
+    /services
+      llm_service.py           → 3-tier LLM fallback: Claude → Gemini → Rule-based
+      ocr_service.py           → PDF/DOCX text extraction + Tesseract OCR fallback
+      risk_service.py          → Safety score calculation and risk level classification
+      compliance_service.py    → Rule-set compliance auditing (NDA, GDPR, Employment, etc.)
+      embedding_service.py     → 768-dim vector embeddings + pgvector semantic search
+      chat_service.py          → RAG-powered document Q&A with citation grounding
+      spark_analytics_service.py    → PySpark batch analytics (risk distribution, trends)
+      event_streaming_service.py    → Apache Kafka producer/consumer for document events
+      lakehouse_service.py          → Medallion architecture (Bronze → Silver → Gold)
+      analytics_etl_service.py      → Star schema ETL: OLTP → dimensional fact tables
+      data_quality_service.py       → Automated data validation and governance checks
+      mcp_server.py                 → MCP protocol server for LLM tool access
+      report_generator_service.py   → PDF/DOCX report generation via ReportLab
+      storage_service.py            → Supabase Storage file operations
+    /models             → SQLAlchemy ORM models + Pydantic v2 schemas
+    /workers            → Celery async tasks (document analysis pipeline)
+    /core               → config, database, auth, security, logging, rate limiting
+  /migrations
+    0001–0007           → Core OLTP schema (users, documents, clauses, etc.)
+    0008                → Analytics star schema (dim_*, fact_*, SCD Type 2)
+    0009                → SQL window function views (trends, distributions, cumulative)
+  /databricks
+    document_analysis_notebook.py  → Databricks notebook: Delta Lake medallion pipeline
+    unity_catalog_config.py        → Unity Catalog 3-level namespace configuration
+  /orchestration
+    adf_pipeline.json              → Azure Data Factory pipeline definition
+    airflow_dag.py                 → Apache Airflow DAG (TaskFlow API)
+  /tests                → 18+ test modules covering all services
+
+/docker-compose.yml     → Backend + n8n + Redis + Celery + Kafka + Zookeeper
+/.github/workflows      → CI pipeline: lint, audit, test, build
 ```
-Request flow: frontend → FastAPI → Postgres/SQLite, with document processing (OCR → LLM → risk scoring) run as a background step, not inline on the request.
+
+### Data Flow
+
+```
+Upload → OCR/Extract → [Kafka: document.uploaded]
+  → LLM Analyze (Claude/Gemini/Ollama) → Risk Score → Compliance Check
+    → [Kafka: document.analyzed]
+      → Chunk & Embed (768-dim pgvector) → ETL to Star Schema
+        → [Kafka: document.completed]
+          → Report Generate → Notify User
+```
+
+### ETL / Data Modelling Layer
+
+The analytics layer implements a **star schema** dimensional model:
+- **Dimensions:** `dim_document_types`, `dim_clause_categories`, `dim_risk_levels`, `dim_dates`
+- **Facts:** `fact_document_analyses`, `fact_clause_risks`
+- **SCD Type 2:** `dim_documents_scd2` tracks document re-analysis history with `effective_from`, `effective_to`, `is_current` columns and a PostgreSQL trigger
+
+### Lakehouse Architecture (Medallion Pattern)
+
+| Layer | Content | Storage |
+|---|---|---|
+| Bronze | Raw extracted text, OCR output | Append-only, immutable |
+| Silver | Parsed clauses, risk flags, compliance results | Cleaned, validated |
+| Gold | Aggregated analytics, risk reports | Business-ready |
+
+
 
 ## Data Model / Schema
+
+### OLTP Layer (Operational)
 
 | Entity | Key Fields |
 |---|---|
 | `users` | id, org_id, email, role |
 | `organizations` | id, name, plan |
-| `documents` | id, user_id, filename, status |
-| `extracted_text` | id, document_id, content, method |
-| `clauses` | id, document_id, clause_type, clause_text |
+| `documents` | id, user_id, filename, status, safety_score, risk_level |
+| `extracted_text` | id, document_id, content, method, parsing_confidence |
+| `clauses` | id, document_id, clause_type, clause_text, confidence_score, category |
 | `risk_flags` | id, clause_id, severity, explanation |
 | `compliance_checks` | id, document_id, rule_set, result |
+| `document_chunks` | id, document_id, chunk_text, chunk_index, embedding (vector 768) |
+| `chat_messages` | id, document_id, user_id, role, content, citations, confidence |
+| `deep_extractions` | id, document_id, deal_terms, obligations, risk_flags, redline_suggestions |
 | `reports` | id, document_id, format, file_url |
 | `audit_logs` | id, document_id, action, created_at |
+| `clause_reviews` | id, clause_id, document_id, user_id, decision, note |
+| `automation_runs` | id, document_id, workflow_name, status, retry_count |
 
-Full schema and ER diagram: [`docs/legal-analyzer-architecture.md`](./docs/legal-analyzer-architecture.md#section-7--database-schema).
+### Analytics Layer (Star Schema)
+
+| Entity | Type | Key Fields |
+|---|---|---|
+| `dim_document_types` | Dimension | id, type_name, description |
+| `dim_clause_categories` | Dimension | id, category_name, description |
+| `dim_risk_levels` | Dimension | id, level_name, severity_order, color_code |
+| `dim_dates` | Dimension | date_key, year, quarter, month, day, is_weekend |
+| `fact_document_analyses` | Fact | document_id, risk_level_id, safety_score, clause_count, high/med/low counts |
+| `fact_clause_risks` | Fact | clause_id, category_id, risk_level_id, confidence_score |
+| `dim_documents_scd2` | SCD Type 2 | document_id, safety_score, risk_level, effective_from, effective_to, is_current |
+
+### Analytics Views (Window Functions)
+
+| View | Window Functions Used |
+|---|---|
+| `v_document_risk_trends` | ROW_NUMBER, AVG (rolling 3), LAG, RANK |
+| `v_clause_category_distribution` | COUNT (partition), DENSE_RANK, percentage calc |
+| `v_user_activity_metrics` | SUM, FIRST_VALUE, NTILE quartiles |
+| `v_compliance_violation_cumulative` | SUM (unbounded preceding), PERCENT_RANK |
+
+Full schema: [`backend/migrations/`](./backend/migrations/).
+
+### Database Migrations (Alembic)
+
+Database schema evolutions are version-controlled using **Alembic**:
+
+```bash
+# Navigate to backend directory
+cd backend
+
+# Run all pending migrations to bring the database up to date
+alembic upgrade head
+
+# Check current migration revision
+alembic current
+
+# Roll back the most recent migration
+alembic downgrade -1
+
+# Generate a new auto-detected migration revision after modifying models
+alembic revision --autogenerate -m "describe_schema_changes"
+```
 
 ## Tests
 
@@ -226,6 +345,30 @@ jobs:
       - uses: actions/checkout@v4
       - run: cd frontend && npm install && npm run lint
 ```
+
+## Technology Stack
+
+| Category | Technology | Role in Legal Analyzer |
+|---|---|---|
+| **Languages** | Python 3.11+, TypeScript 5, SQL | Backend services, frontend UI, analytics queries |
+| **Backend** | FastAPI, Pydantic v2, SQLAlchemy | REST API, schema validation, ORM |
+| **Frontend** | Next.js (App Router), Tailwind CSS, shadcn/ui | Dashboard, document viewer, report UI |
+| **Database** | PostgreSQL (Supabase), pgvector | Primary OLTP store + 768-dim vector embeddings |
+| **Big Data** | Apache Spark / PySpark | Batch analytics: risk distributions, clause trends |
+| **Lakehouse** | Databricks, Delta Lake, Unity Catalog | Medallion architecture (Bronze → Silver → Gold) |
+| **Streaming** | Apache Kafka, confluent-kafka | Document lifecycle event streaming |
+| **Orchestration** | Azure Data Factory, Apache Airflow, n8n, Celery | Pipeline orchestration (multiple options) |
+| **Data Modelling** | Star schema, SCD Type 2, dimensional modelling | Analytics layer: facts, dimensions, slowly changing dims |
+| **AI/ML** | Claude API, Gemini API, Ollama, RAG, pgvector | Clause extraction, risk scoring, document Q&A |
+| **MCP** | Model Context Protocol (JSON-RPC) | Exposing document data as LLM-queryable tools |
+| **Cloud** | AWS (Supabase on AWS), Azure (ADF, DevOps), Vercel, Render | Deployment and infrastructure |
+| **Databases** | PostgreSQL, Redis, SQL Server (optional), MongoDB (awareness) | Multi-database connectivity |
+| **CI/CD** | GitHub Actions, Docker, docker-compose | Automated lint, audit, test, build pipeline |
+| **Monitoring** | Sentry (error tracking) | Production observability |
+| **Security** | Supabase Auth, RBAC, rate limiting, CORS, CSP headers | Authentication and access control |
+| **Data Quality** | Custom governance service | Automated validation of extraction, embeddings, scores |
+| **Version Control** | Git (branching: main, feature/**) | Source control with branch-based CI triggers |
+| **OS** | Linux (Docker, CI runs ubuntu-latest) | Production runtime environment |
 
 ## Deployment
 
@@ -311,7 +454,7 @@ Recommended production strategy: containerized backend + managed Postgres + secr
 
 ## Acknowledgements & Credits
 
-Built with [Next.js](https://nextjs.org), [FastAPI](https://fastapi.tiangolo.com), [SQLAlchemy](https://www.sqlalchemy.org), [Tailwind CSS](https://tailwindcss.com), [shadcn/ui](https://ui.shadcn.com), [pypdf](https://pypdf.readthedocs.io), and the [Gemini API](https://ai.google.dev). Automation designed around [n8n](https://n8n.io).
+Built with [Next.js](https://nextjs.org), [FastAPI](https://fastapi.tiangolo.com), [SQLAlchemy](https://www.sqlalchemy.org), [Tailwind CSS](https://tailwindcss.com), [shadcn/ui](https://ui.shadcn.com), [pypdf](https://pypdf.readthedocs.io), the [Gemini API](https://ai.google.dev), and the [Claude API](https://docs.anthropic.com). Automation designed around [n8n](https://n8n.io). Analytics powered by [Apache Spark](https://spark.apache.org) and [PySpark](https://spark.apache.org/docs/latest/api/python/). Event streaming via [Apache Kafka](https://kafka.apache.org). Lakehouse architecture with [Databricks](https://databricks.com) and [Delta Lake](https://delta.io). Orchestration with [Azure Data Factory](https://azure.microsoft.com/en-us/products/data-factory) and [Apache Airflow](https://airflow.apache.org).
 
 ## Appendix
 

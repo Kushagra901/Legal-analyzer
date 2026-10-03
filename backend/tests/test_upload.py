@@ -168,7 +168,7 @@ def test_upload_valid_docx():
     Test uploading a valid DOCX document.
     """
     from app.models import ExtractedText
-    file_content = b"mock DOCX file content"
+    file_content = b"PK\x03\x04mock DOCX file content"
     file_name = "test_contract.docx"
 
     # Mock storage, OCR (returning DOCX parsed equivalent), and n8n webhook
@@ -224,7 +224,7 @@ def test_upload_invalid_file_type():
 
     # Verify rejection
     assert response.status_code == 400
-    assert "Unsupported file type" in response.json()["detail"]
+    assert "Unsupported file extension" in response.json()["detail"]
 
     # Verify no DB records were created
     db = TestingSessionLocal()

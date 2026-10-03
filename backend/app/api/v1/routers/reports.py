@@ -3,6 +3,7 @@ Reports router.
 Handles retrieval, generation, storage, and export requests for legal memorandum reports in PDF and DOCX formats.
 """
 import json
+import logging
 import uuid
 from typing import Any
 
@@ -17,6 +18,7 @@ from app.services.report_generator_service import ReportGeneratorService
 from app.services.storage_service import StorageService
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 def assemble_report_data(doc: Any, db: Session) -> dict[str, Any]:
@@ -140,7 +142,7 @@ def get_report(
         db.commit()
     except Exception as e:
         db.rollback()
-        print(f"Error writing report audit log: {e}")
+        logger.error("Error writing report audit log: %s", e, exc_info=True)
 
     clause_responses = [
         ClauseResponse(
@@ -222,7 +224,7 @@ def export_report(
         )
         report_url = storage_service.get_public_url(storage_path)
     except Exception as e:
-        print(f"Warning: Storage upload fallback: {e}")
+        logger.warning("Storage upload fallback: %s", e)
         report_url = f"/api/v1/reports/{doc.id}/download?format={ext}"
 
     # 4. Insert or update reports table
@@ -255,7 +257,7 @@ def export_report(
         db.commit()
     except Exception as e:
         db.rollback()
-        print(f"Error writing export audit log: {e}")
+        logger.error("Error writing export audit log: %s", e, exc_info=True)
 
     clause_responses = [
         ClauseResponse(

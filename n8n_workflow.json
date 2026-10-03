@@ -7,7 +7,12 @@
         "path": "document-uploaded",
         "responseMode": "onReceived",
         "isFullPath": true,
-        "options": {}
+        "options": {},
+        "authentication": "headerAuth",
+        "headerAuth": {
+          "name": "X-Webhook-Secret",
+          "value": "={{ $env.INTERNAL_SERVICE_TOKEN }}"
+        }
       },
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1,
@@ -17,7 +22,13 @@
       ],
       "id": "webhook-trigger",
       "name": "Webhook (Document Uploaded)",
-      "webhookId": "document-uploaded"
+      "webhookId": "document-uploaded",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "webhook-header-auth",
+          "name": "X-Webhook-Secret"
+        }
+      }
     },
     {
       "parameters": {
@@ -97,7 +108,7 @@
           "parameters": [
             {
               "name": "X-Internal-Token",
-              "value": "placeholder_internal_service_token"
+              "value": "={{ $env.INTERNAL_SERVICE_TOKEN }}"
             }
           ]
         },
@@ -143,7 +154,7 @@
           "parameters": [
             {
               "name": "X-Internal-Token",
-              "value": "placeholder_internal_service_token"
+              "value": "={{ $env.INTERNAL_SERVICE_TOKEN }}"
             }
           ]
         },
@@ -167,7 +178,7 @@
           "parameters": [
             {
               "name": "X-Internal-Token",
-              "value": "placeholder_internal_service_token"
+              "value": "={{ $env.INTERNAL_SERVICE_TOKEN }}"
             }
           ]
         },
@@ -213,7 +224,7 @@
           "parameters": [
             {
               "name": "X-Internal-Token",
-              "value": "placeholder_internal_service_token"
+              "value": "={{ $env.INTERNAL_SERVICE_TOKEN }}"
             }
           ]
         },
@@ -237,7 +248,7 @@
           "parameters": [
             {
               "name": "X-Internal-Token",
-              "value": "placeholder_internal_service_token"
+              "value": "={{ $env.INTERNAL_SERVICE_TOKEN }}"
             }
           ]
         },
@@ -261,7 +272,7 @@
           "parameters": [
             {
               "name": "X-Internal-Token",
-              "value": "placeholder_internal_service_token"
+              "value": "={{ $env.INTERNAL_SERVICE_TOKEN }}"
             }
           ]
         },
@@ -285,7 +296,7 @@
           "parameters": [
             {
               "name": "X-Internal-Token",
-              "value": "placeholder_internal_service_token"
+              "value": "={{ $env.INTERNAL_SERVICE_TOKEN }}"
             }
           ]
         },
@@ -309,7 +320,7 @@
           "parameters": [
             {
               "name": "X-Internal-Token",
-              "value": "placeholder_internal_service_token"
+              "value": "={{ $env.INTERNAL_SERVICE_TOKEN }}"
             }
           ]
         },
@@ -333,7 +344,7 @@
           "parameters": [
             {
               "name": "X-Internal-Token",
-              "value": "placeholder_internal_service_token"
+              "value": "={{ $env.INTERNAL_SERVICE_TOKEN }}"
             }
           ]
         },
@@ -359,7 +370,7 @@
           "parameters": [
             {
               "name": "X-Internal-Token",
-              "value": "placeholder_internal_service_token"
+              "value": "={{ $env.INTERNAL_SERVICE_TOKEN }}"
             }
           ]
         },
@@ -404,7 +415,7 @@
           "parameters": [
             {
               "name": "X-Internal-Token",
-              "value": "placeholder_internal_service_token"
+              "value": "={{ $env.INTERNAL_SERVICE_TOKEN }}"
             }
           ]
         },
@@ -501,7 +512,7 @@
           "parameters": [
             {
               "name": "X-Internal-Token",
-              "value": "placeholder_internal_service_token"
+              "value": "={{ $env.INTERNAL_SERVICE_TOKEN }}"
             }
           ]
         },
@@ -602,7 +613,7 @@
           "parameters": [
             {
               "name": "X-Internal-Token",
-              "value": "placeholder_internal_service_token"
+              "value": "={{ $env.INTERNAL_SERVICE_TOKEN }}"
             }
           ]
         },
