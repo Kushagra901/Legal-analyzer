@@ -275,10 +275,11 @@ def test_list_documents():
     response = client.get("/api/v1/documents", headers={"Authorization": "Bearer test-token"})
     assert response.status_code == 200
     data = response.json()
-    assert len(data) == 2
+    items = data["items"] if isinstance(data, dict) and "items" in data else data
+    assert len(items) == 2
     # Ensure they are sorted by uploaded_at desc
-    assert data[0]["filename"] == "doc2.pdf"
-    assert data[1]["filename"] == "doc1.pdf"
+    assert items[0]["filename"] == "doc2.pdf"
+    assert items[1]["filename"] == "doc1.pdf"
 
 def test_ocr_service_decision():
     """

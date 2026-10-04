@@ -5,6 +5,7 @@ Handles image-to-text extraction, native PDF extraction, and text extraction
 for DOCX, HTML, RTF, TXT, DOC, and images with fallback mechanisms.
 """
 import io
+import logging
 import os
 import re
 
@@ -15,6 +16,8 @@ from bs4 import BeautifulSoup
 from PIL import Image
 from pypdf import PdfReader
 from striprtf.striprtf import rtf_to_text
+
+logger = logging.getLogger(__name__)
 
 
 class OCRService:
@@ -121,7 +124,7 @@ class OCRService:
                     text_parts.append(text_content)
             return "\n".join(text_parts)
         except Exception as e:
-            print(f"Error during native text extraction: {e}")
+            logger.error("Error during native text extraction: %s", e)
             return ""
 
     def extract_text_via_ocr(self, file_source: str | bytes) -> str:
@@ -145,7 +148,7 @@ class OCRService:
                     ocr_parts.append(text)
             return "\n".join(ocr_parts)
         except Exception as e:
-            print(f"Error during OCR text extraction: {e}")
+            logger.error("Error during OCR text extraction: %s", e)
             return ""
 
     def extract_docx(self, file_source: str | bytes) -> str:
@@ -165,7 +168,7 @@ class OCRService:
                     text_parts.append(" | ".join([cell.text for cell in row.cells]))
             return "\n".join(text_parts)
         except Exception as e:
-            print(f"Error during DOCX extraction: {e}")
+            logger.error("Error during DOCX extraction: %s", e)
             return ""
 
     def extract_html(self, file_source: str | bytes) -> str:
@@ -181,7 +184,7 @@ class OCRService:
             soup = BeautifulSoup(content, "html.parser")
             return soup.get_text(separator="\n")
         except Exception as e:
-            print(f"Error during HTML extraction: {e}")
+            logger.error("Error during HTML extraction: %s", e)
             return ""
 
     def extract_rtf(self, file_source: str | bytes) -> str:
@@ -196,7 +199,7 @@ class OCRService:
                     content = f.read()
             return rtf_to_text(content)
         except Exception as e:
-            print(f"Error during RTF extraction: {e}")
+            logger.error("Error during RTF extraction: %s", e)
             return ""
 
     def extract_txt(self, file_source: str | bytes) -> str:
@@ -213,7 +216,7 @@ class OCRService:
                 with open(file_source, encoding="utf-8", errors="ignore") as f:
                     return f.read()
         except Exception as e:
-            print(f"Error during TXT extraction: {e}")
+            logger.error("Error during TXT extraction: %s", e)
             return ""
 
     def extract_doc_fallback(self, file_source: str | bytes) -> str:
@@ -230,7 +233,7 @@ class OCRService:
             matches = pattern.findall(data)
             return "\n".join([m.decode("latin-1", errors="ignore") for m in matches])
         except Exception as e:
-            print(f"Error during DOC fallback extraction: {e}")
+            logger.error("Error during DOC fallback extraction: %s", e)
             return ""
 
     def extract_image(self, file_source: str | bytes) -> str:
@@ -244,7 +247,7 @@ class OCRService:
                 img = Image.open(file_source)
             return pytesseract.image_to_string(img)
         except Exception as e:
-            print(f"Error during image OCR extraction: {e}")
+            logger.error("Error during image OCR extraction: %s", e)
             return ""
 
     def process_document(self, file_source: str | bytes) -> tuple[str, str, float]:
@@ -258,7 +261,7 @@ class OCRService:
         if file_format == "pdf":
             native_text = self.extract_text_natively(file_source)
             if self.should_use_ocr(native_text):
-                print("Native PDF extraction yields low text. Running OCR fallback...")
+                logger.info("Native PDF extraction yields low text. Running OCR fallback...")
                 ocr_text = self.extract_text_via_ocr(file_source)
                 return ocr_text, "ocr", 0.85
             else:

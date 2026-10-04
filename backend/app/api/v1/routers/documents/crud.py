@@ -13,12 +13,13 @@ from fastapi import (
     Depends,
     File,
     HTTPException,
+    Query,
     Request,
     UploadFile,
     status,
 )
 from sqlalchemy import text
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.core.auth import get_accessible_document, get_current_user
 from app.core.database import get_db
@@ -43,6 +44,7 @@ from app.models.schemas import (
     ClauseResponse,
     DocumentListItemResponse,
     DocumentResponse,
+    PaginatedDocumentList,
     UploadResponse,
 )
 from app.services.ocr_service import OCRService
@@ -306,29 +308,39 @@ async def upload_document(
         )
 
 
-@router.get("/", response_model=list[DocumentListItemResponse])
+@router.get("/", response_model=PaginatedDocumentList)
 @limiter.limit("60/minute")
 def list_documents(
     request: Request,
+    limit: int = Query(default=50, ge=1, le=100, description="Max documents to return"),
+    offset: int = Query(default=0, ge=0, description="Number of documents to skip"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-) -> list[DocumentListItemResponse]:
+    current_user: User = Depends(get_current_user),
+) -> PaginatedDocumentList:
     """
-    Retrieve all uploaded documents.
+    Retrieve paginated uploaded documents.
     """
-    if current_user.role == "admin":
-        docs = db.query(Document).order_by(Document.uploaded_at.desc()).all()
-    else:
-        docs = db.query(Document).filter(Document.user_id == current_user.id).order_by(Document.uploaded_at.desc()).all()
-    return [
+    query = db.query(Document)
+    if current_user.role != "admin":
+        query = query.filter(Document.user_id == current_user.id)
+
+    total = query.count()
+    docs = query.order_by(Document.uploaded_at.desc()).offset(offset).limit(limit).all()
+    items = [
         DocumentListItemResponse(
             document_id=str(doc.id),
             filename=doc.filename,
             status=doc.status,
-            uploaded_at=doc.uploaded_at.isoformat() if doc.uploaded_at else None
+            uploaded_at=doc.uploaded_at.isoformat() if doc.uploaded_at else None,
         )
         for doc in docs
     ]
+    return PaginatedDocumentList(
+        items=items,
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.get("/{document_id}/status", response_model=AnalysisStatusResponse)
@@ -394,14 +406,19 @@ def get_document(
     extracted_text_obj = db.query(ExtractedText).filter(ExtractedText.document_id == doc.id).first()
     original_text = extracted_text_obj.content if extracted_text_obj else ""
 
-    # Load Clauses
-    clauses_db = db.query(Clause).filter(Clause.document_id == doc.id).all()
+    # Load Clauses with eager-loaded risk flags
+    clauses_db = (
+        db.query(Clause)
+        .options(joinedload(Clause.risk_flags))
+        .filter(Clause.document_id == doc.id)
+        .all()
+    )
     clauses = []
     recommendations = []
 
     for c_db in clauses_db:
-        # Load risk flags linked to this clause
-        flags = db.query(RiskFlag).filter(RiskFlag.clause_id == c_db.id).all()
+        # Access eager-loaded risk flags in memory without issuing round-trip SQL queries
+        flags = c_db.risk_flags
         severity = "LOW"
         explanation = ""
         if flags:

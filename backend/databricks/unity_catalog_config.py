@@ -34,15 +34,15 @@ TABLES = {
 def get_setup_sql_statements() -> list[str]:
     """Generates Spark SQL statements to create the Unity Catalog structure."""
     statements = []
-    
+
     # 1. Create Catalog
     statements.append(f"CREATE CATALOG IF NOT EXISTS {CATALOG_NAME};")
     statements.append(f"USE CATALOG {CATALOG_NAME};")
-    
+
     # 2. Create Schemas
     for schema in SCHEMAS.values():
         statements.append(f"CREATE SCHEMA IF NOT EXISTS {CATALOG_NAME}.{schema};")
-        
+
     return statements
 
 if __name__ == "__main__":

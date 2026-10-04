@@ -3,6 +3,7 @@ Celery asynchronous background tasks for document analysis.
 """
 
 import json
+import logging
 import uuid
 
 from app.core.database import SessionLocal
@@ -21,6 +22,8 @@ from app.services.llm_service import LLMService
 from app.services.risk_service import RiskService
 from app.workers.celery_app import celery_app
 
+logger = logging.getLogger(__name__)
+
 
 def execute_document_analysis(document_id: str):
     """
@@ -32,7 +35,7 @@ def execute_document_analysis(document_id: str):
         doc_uuid = uuid.UUID(document_id)
         doc = db.query(Document).filter(Document.id == doc_uuid).first()
         if not doc:
-            print(f"Task error: Document {document_id} not found.")
+            logger.error("Task error: Document %s not found.", document_id)
             return
 
         doc.status = "processing"
@@ -117,7 +120,7 @@ def execute_document_analysis(document_id: str):
         try:
             embedding_service.chunk_and_embed_document(doc.id, extracted_text, db)
         except Exception as e:
-            print(f"Warning: Chunking and embedding failed in background task for {document_id}: {e}")
+            logger.warning("Chunking and embedding failed in background task for %s: %s", document_id, e)
 
         # Write audit log
         audit_log = AuditLog(
@@ -129,7 +132,7 @@ def execute_document_analysis(document_id: str):
 
     except Exception as e:
         db.rollback()
-        print(f"Error in analyze_document_task for {document_id}: {e}")
+        logger.error("Error in analyze_document_task for %s: %s", document_id, e)
         doc = db.query(Document).filter(Document.id == uuid.UUID(document_id)).first()
         if doc:
             doc.status = "failed"

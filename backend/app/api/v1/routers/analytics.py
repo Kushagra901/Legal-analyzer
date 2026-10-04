@@ -1,12 +1,13 @@
-from typing import Any, Dict, List
+from typing import Any
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-from pydantic import BaseModel
 
-from app.core.database import get_db
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
 from app.core.auth import get_current_user
+from app.core.database import get_db
 from app.services.analytics_etl_service import AnalyticsETLService
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
@@ -47,21 +48,21 @@ class ETLResponse(BaseModel):
     error: str | None = None
     message: str | None = None
 
-@router.get("/risk-trends", response_model=List[RiskTrendResponse])
+@router.get("/risk-trends", response_model=list[RiskTrendResponse])
 def get_risk_trends(db: Session = Depends(get_db), current_user: Any = Depends(get_current_user)):
     """Get document risk trends from the v_document_risk_trends view (current user only)."""
     query = text("SELECT * FROM v_document_risk_trends WHERE user_id = :user_id")
     result = db.execute(query, {"user_id": current_user.id}).mappings().all()
     return result
 
-@router.get("/clause-distribution", response_model=List[ClauseDistributionResponse])
+@router.get("/clause-distribution", response_model=list[ClauseDistributionResponse])
 def get_clause_distribution(db: Session = Depends(get_db), current_user: Any = Depends(get_current_user)):
     """Get clause category distribution from v_clause_category_distribution."""
     query = text("SELECT * FROM v_clause_category_distribution")
     result = db.execute(query).mappings().all()
     return result
 
-@router.get("/user-metrics", response_model=List[UserMetricsResponse])
+@router.get("/user-metrics", response_model=list[UserMetricsResponse])
 def get_user_metrics(db: Session = Depends(get_db), current_user: Any = Depends(get_current_user)):
     """Get user activity metrics from v_user_activity_metrics (current user only)."""
     query = text("SELECT * FROM v_user_activity_metrics WHERE user_id = :user_id")
@@ -73,7 +74,7 @@ def trigger_etl(document_id: UUID, db: Session = Depends(get_db), current_user: 
     """Trigger ETL for a specific document. Admin only."""
     if not getattr(current_user, "is_superuser", False):
          raise HTTPException(status_code=403, detail="Admin access required")
-    
+
     service = AnalyticsETLService(db)
     result = service.run_full_etl(document_id)
     return result
@@ -83,7 +84,7 @@ def trigger_backfill(db: Session = Depends(get_db), current_user: Any = Depends(
     """Trigger full backfill. Admin only."""
     if not getattr(current_user, "is_superuser", False):
          raise HTTPException(status_code=403, detail="Admin access required")
-         
+
     service = AnalyticsETLService(db)
     result = service.backfill_all_documents()
     return result

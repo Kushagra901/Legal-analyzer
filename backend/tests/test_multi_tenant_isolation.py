@@ -163,13 +163,15 @@ def test_list_documents_filters_by_user_id():
     res_1 = client.get("/api/v1/documents")
     assert res_1.status_code == 200
     docs_1 = res_1.json()
-    assert len(docs_1) == 1
-    assert docs_1[0]["filename"] == "u1_doc.pdf"
+    items_1 = docs_1["items"] if isinstance(docs_1, dict) and "items" in docs_1 else docs_1
+    assert len(items_1) == 1
+    assert items_1[0]["filename"] == "u1_doc.pdf"
 
     # User 2 list only returns u2_doc.pdf
     current_test_user_id = USER_2_ID
     res_2 = client.get("/api/v1/documents")
     assert res_2.status_code == 200
     docs_2 = res_2.json()
-    assert len(docs_2) == 1
-    assert docs_2[0]["filename"] == "u2_doc.pdf"
+    items_2 = docs_2["items"] if isinstance(docs_2, dict) and "items" in docs_2 else docs_2
+    assert len(items_2) == 1
+    assert items_2[0]["filename"] == "u2_doc.pdf"

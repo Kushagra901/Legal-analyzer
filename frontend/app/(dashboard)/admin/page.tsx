@@ -39,7 +39,7 @@ export default function AdminPage() {
       try {
         setIsLoading(true);
         const dataLogs = await apiClient.getAuditLogs();
-        setLogs(dataLogs);
+        setLogs(dataLogs.items || (Array.isArray(dataLogs) ? dataLogs : []));
         setError(null);
       } catch (err: any) {
         if (err.message && (err.message.includes("403") || err.message.toLowerCase().includes("access denied"))) {

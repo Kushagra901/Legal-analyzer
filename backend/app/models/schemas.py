@@ -70,6 +70,14 @@ class DocumentListItemResponse(BaseModel):
 DocumentListResponse = list[DocumentListItemResponse]
 
 
+class PaginatedDocumentList(BaseModel):
+    """Paginated document listing response schema."""
+    items: list[DocumentListItemResponse] = Field(..., description="List of document items")
+    total: int = Field(..., description="Total count of matching documents")
+    limit: int = Field(..., description="Maximum items per page")
+    offset: int = Field(..., description="Pagination offset")
+
+
 class DocumentResponse(BaseModel):
     """Full detail response schema for a document."""
     document_id: str = Field(..., description="UUID of the document")
@@ -126,6 +134,14 @@ class AuditLogItemResponse(BaseModel):
 
 
 AuditLogResponse = list[AuditLogItemResponse]
+
+
+class PaginatedAuditLogList(BaseModel):
+    """Paginated audit log listing response schema."""
+    items: list[AuditLogItemResponse] = Field(..., description="List of audit log items")
+    total: int = Field(..., description="Total count of matching audit logs")
+    limit: int = Field(..., description="Maximum items per page")
+    offset: int = Field(..., description="Pagination offset")
 
 
 class ClauseReviewCreate(BaseModel):

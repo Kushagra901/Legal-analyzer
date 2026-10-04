@@ -4,12 +4,11 @@ Provides large-scale batch computations over the legal document corpus including
 risk distribution analysis, clause frequency trends, cross-document pattern detection,
 and temporal analytics. Designed to run as scheduled batch jobs or on-demand.
 """
-import logging
 import datetime
+import logging
 from typing import Any
-from uuid import UUID
 
-from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
 from pyspark.sql.window import Window
 
@@ -84,13 +83,13 @@ class SparkAnalyticsService:
             docs_df = self._read_table("documents")
             if docs_df.isEmpty():
                 return []
-            
+
             analyzed_docs = docs_df.filter(F.col("status") == "COMPLETED")
             total_docs = analyzed_docs.count()
-            
+
             if total_docs == 0:
                 return []
-                
+
             dist_df = analyzed_docs.groupBy("risk_level").agg(
                 F.count("*").alias("count"),
                 F.avg("safety_score").alias("avg_safety_score"),
@@ -99,7 +98,7 @@ class SparkAnalyticsService:
             ).withColumn(
                 "percentage", F.round((F.col("count") / F.lit(total_docs)) * 100, 2)
             ).orderBy(F.col("count").desc())
-            
+
             return [row.asDict() for row in dist_df.collect()]
         except Exception as e:
             logger.error(f"Error in analyze_risk_distribution: {e}")
@@ -113,7 +112,7 @@ class SparkAnalyticsService:
             clauses_df = self._read_table("clauses")
             if clauses_df.isEmpty():
                 return []
-                
+
             freq_df = clauses_df.groupBy("clause_type").agg(
                 F.count("*").alias("occurrence_count"),
                 F.avg("confidence_score").alias("avg_confidence_score"),
@@ -121,7 +120,7 @@ class SparkAnalyticsService:
                 F.sum(F.when(F.col("severity") == "MEDIUM", 1).otherwise(0)).alias("medium_severity_count"),
                 F.sum(F.when(F.col("severity") == "LOW", 1).otherwise(0)).alias("low_severity_count")
             ).orderBy(F.col("occurrence_count").desc())
-            
+
             return [row.asDict() for row in freq_df.collect()]
         except Exception as e:
             logger.error(f"Error in analyze_clause_frequency: {e}")
@@ -135,25 +134,25 @@ class SparkAnalyticsService:
             docs_df = self._read_table("documents")
             if docs_df.isEmpty():
                 return []
-                
+
             analyzed_docs = docs_df.filter(F.col("status") == "COMPLETED").withColumn(
                 "month_year", F.date_format("created_at", "yyyy-MM")
             )
-            
+
             monthly_stats = analyzed_docs.groupBy("month_year").agg(
                 F.count("*").alias("doc_count"),
                 F.avg("safety_score").alias("avg_safety_score")
             )
-            
+
             window_spec = Window.orderBy("month_year")
-            
+
             trends_df = monthly_stats.withColumn(
                 "prev_month_avg_score", F.lag("avg_safety_score", 1).over(window_spec)
             ).withColumn(
-                "mom_score_change", 
+                "mom_score_change",
                 F.round(F.col("avg_safety_score") - F.col("prev_month_avg_score"), 2)
             ).orderBy("month_year")
-            
+
             return [row.asDict() for row in trends_df.collect()]
         except Exception as e:
             logger.error(f"Error in analyze_risk_trends_by_month: {e}")
@@ -167,24 +166,24 @@ class SparkAnalyticsService:
             clauses_df = self._read_table("clauses")
             if clauses_df.isEmpty():
                 return []
-                
+
             # Self join to find pairs of clauses in the same document
             pairs_df = clauses_df.alias("c1").join(
                 clauses_df.alias("c2"),
-                (F.col("c1.document_id") == F.col("c2.document_id")) & 
+                (F.col("c1.document_id") == F.col("c2.document_id")) &
                 (F.col("c1.clause_type") < F.col("c2.clause_type"))
             )
-            
+
             pattern_df = pairs_df.groupBy("c1.clause_type", "c2.clause_type").agg(
                 F.count("*").alias("co_occurrence_count")
             ).orderBy(F.col("co_occurrence_count").desc()).limit(20)
-            
+
             result_df = pattern_df.select(
                 F.col("c1.clause_type").alias("clause_type_1"),
                 F.col("c2.clause_type").alias("clause_type_2"),
                 F.col("co_occurrence_count")
             )
-            
+
             return [row.asDict() for row in result_df.collect()]
         except Exception as e:
             logger.error(f"Error in analyze_cross_document_patterns: {e}")
@@ -199,11 +198,11 @@ class SparkAnalyticsService:
             docs_df = self._read_table("documents")
             if docs_df.isEmpty():
                 return []
-                
+
             filtered_docs = docs_df.filter(F.col("status") == "COMPLETED")
             if user_id:
                 filtered_docs = filtered_docs.filter(F.col("user_id") == user_id)
-                
+
             portfolio_df = filtered_docs.groupBy("user_id").agg(
                 F.count("*").alias("total_documents"),
                 F.avg("safety_score").alias("portfolio_safety_score"),
@@ -212,7 +211,7 @@ class SparkAnalyticsService:
                 "portfolio_risk_exposure",
                 F.round((F.col("high_risk_docs") / F.col("total_documents")) * 100, 2)
             ).orderBy(F.col("portfolio_safety_score").asc())
-            
+
             return [row.asDict() for row in portfolio_df.collect()]
         except Exception as e:
             logger.error(f"Error in analyze_user_portfolio_risk: {e}")

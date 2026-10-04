@@ -15,6 +15,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.api.v1.routers import admin, analytics, auth, documents, reports, system
 from app.core.config import settings
 from app.core.limiter import limiter
+from app.core.logging import setup_logging
 from app.core.security_headers import SecurityHeadersMiddleware
 from app.models.schemas import HealthResponse
 from app.services.mcp_server import create_mcp_router
@@ -32,6 +33,8 @@ async def lifespan(app: FastAPI):
     settings.validate_production_secrets()
     yield
 
+
+setup_logging()
 
 app = FastAPI(
     title="Legal Analyzer API",

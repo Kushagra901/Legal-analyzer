@@ -5,20 +5,21 @@ Uses SQLite in-memory database to test data quality validation logic.
 
 import pytest
 
+
 # Mock DataQualityService
 class DataQualityService:
     def validate_extracted_text(self, text: str) -> bool:
         return bool(text and len(text.strip()) > 0)
-        
+
     def validate_clause_extraction(self, clauses: list) -> bool:
         return bool(clauses and len(clauses) > 0)
-        
+
     def validate_embedding_quality(self, embedding: list, expected_dim: int = 1536) -> bool:
         return bool(embedding and len(embedding) == expected_dim)
-        
+
     def validate_risk_scoring(self, score: float) -> bool:
         return 0.0 <= score <= 100.0
-        
+
     def run_full_quality_check(self, data: dict) -> dict:
         return {
             "text_valid": self.validate_extracted_text(data.get("text", "")),

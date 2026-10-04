@@ -32,11 +32,12 @@ export default function ReviewQueuePage() {
   useEffect(() => {
     async function loadReviewQueue() {
       try {
-        const docs = await apiClient.getDocuments();
+        const response = await apiClient.getDocuments();
+        const docs = response.items || (Array.isArray(response) ? response : []);
         const queue: FlaggedClauseItem[] = [];
 
         // Fetch detail and reviews for each document to populate review queue
-        for (const doc of docs || []) {
+        for (const doc of docs) {
           try {
             const [detail, reviews] = await Promise.all([
               apiClient.getDocument(doc.document_id),

@@ -4,8 +4,9 @@ Mocks PySpark SparkSession and DataFrames to test analytics logic
 without requiring a live Spark cluster.
 """
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 
 # Assume the service is located in app.services.spark_analytics
@@ -13,31 +14,31 @@ from unittest.mock import MagicMock, patch
 class MockSparkAnalyticsService:
     def __init__(self):
         self.spark = MagicMock()
-        
+
     def build_jdbc_url(self, db_url):
         if db_url.startswith("postgresql://"):
             return db_url.replace("postgresql://", "jdbc:postgresql://")
         return db_url
-        
+
     def extract_password_from_url(self, db_url):
         # Basic mock implementation
         if ":" in db_url and "@" in db_url:
             return db_url.split("@")[0].split(":")[-1]
         return None
-        
+
     def analyze_risk_distribution(self):
         return {"HIGH": 10, "MEDIUM": 20, "LOW": 70}
-        
+
     def analyze_clause_frequency(self):
         return [{"clause_type": "Confidentiality", "count": 100}]
-        
+
     def generate_corpus_summary(self):
         return {
             "risk_distribution": self.analyze_risk_distribution(),
             "clause_frequency": self.analyze_clause_frequency(),
             "total_documents": 100
         }
-        
+
     def shutdown(self):
         self.spark.stop()
 

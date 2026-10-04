@@ -15,6 +15,13 @@ export interface DocumentListItemResponse {
   risk_level?: string | null;
 }
 
+export interface PaginatedDocumentList {
+  items: DocumentListItemResponse[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 export interface UploadResponse {
   document_id: string;
   filename: string;
@@ -97,6 +104,13 @@ export interface AuditLogItemResponse {
   document_id?: string;
   action: string;
   created_at: string;
+}
+
+export interface PaginatedAuditLogList {
+  items: AuditLogItemResponse[];
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 export interface ClauseReviewResponse {
@@ -207,9 +221,15 @@ async function getAuthHeaders(): Promise<HeadersInit> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-const getDocuments = async (): Promise<DocumentListItemResponse[]> => {
+const getDocuments = async (
+  limit = 50,
+  offset = 0
+): Promise<PaginatedDocumentList> => {
   const headers = await getAuthHeaders();
-  const res = await fetch(`${API_BASE_URL}/api/v1/documents`, { headers });
+  const res = await fetch(
+    `${API_BASE_URL}/api/v1/documents?limit=${limit}&offset=${offset}`,
+    { headers }
+  );
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail || "Failed to fetch documents.");
@@ -331,9 +351,15 @@ const getReport = async (id: string): Promise<ReportResponse> => {
   return res.json();
 };
 
-const getAuditLogs = async (): Promise<AuditLogItemResponse[]> => {
+const getAuditLogs = async (
+  limit = 50,
+  offset = 0
+): Promise<PaginatedAuditLogList> => {
   const headers = await getAuthHeaders();
-  const res = await fetch(`${API_BASE_URL}/api/v1/admin/audit-logs`, { headers });
+  const res = await fetch(
+    `${API_BASE_URL}/api/v1/admin/audit-logs?limit=${limit}&offset=${offset}`,
+    { headers }
+  );
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail || "Failed to fetch audit logs.");

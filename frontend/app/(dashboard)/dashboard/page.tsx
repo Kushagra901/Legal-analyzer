@@ -34,7 +34,7 @@ export default function DashboardPage() {
     async function loadDocuments() {
       try {
         const data = await apiClient.getDocuments();
-        setDocuments(data || []);
+        setDocuments(data.items || (Array.isArray(data) ? data : []));
       } catch (err: any) {
         setError(err.message || "Failed to load documents.");
       } finally {

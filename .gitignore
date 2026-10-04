@@ -30,3 +30,7 @@ Thumbs.db
 
 # --- Antigravity / agent artifacts ---
 .agents/local/
+
+# --- Report binaries & archives ---
+*.zip
+BUG_RESOLUTION_REPORT.pdf
