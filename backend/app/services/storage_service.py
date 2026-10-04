@@ -3,9 +3,13 @@
 Storage Service.
 Handles interactions with Supabase Storage for uploading and retrieving document files.
 """
+import logging
+
 from supabase import Client, create_client
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class StorageService:
@@ -22,7 +26,7 @@ class StorageService:
         # Don't try to initialize if keys are missing (useful for mock tests)
         if not settings.SUPABASE_URL or not settings.SUPABASE_SERVICE_ROLE_KEY:
             self.client = None
-            print("Warning: Supabase credentials missing. StorageService initialized in mock mode.")
+            logger.warning("Supabase credentials missing. StorageService initialized in mock mode.")
             return
 
         self.client: Client = create_client(
@@ -44,7 +48,7 @@ class StorageService:
                 self.client.storage.create_bucket(self.bucket_name, options={"public": False})
         except Exception as e:
             # Catch bucket exists or permission errors gracefully
-            print(f"Bucket check/creation warning: {e}")
+            logger.warning("Bucket check/creation warning: %s", e)
 
     def upload_file(self, file_data: bytes, file_path: str, content_type: str) -> str:
         """
@@ -59,7 +63,7 @@ class StorageService:
             str: The storage file path reference.
         """
         if not self.client:
-            print("StorageService in mock mode. Skipping upload.")
+            logger.info("StorageService in mock mode. Skipping upload.")
             return f"{self.bucket_name}/{file_path}"
 
         # Upload options

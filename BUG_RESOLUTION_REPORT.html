@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Engineering Resolution Report: MED-01 through MED-05 | Legal Analyzer</title>
+  <style>
+    :root {
+      --bg: #faf9f6;
+      --card-bg: #ffffff;
+      --text-main: #111827;
+      --text-muted: #4b5563;
+      --border-color: #e5e7eb;
+      --accent: #0f2942;
+      --accent-hover: #0a1c2e;
+      --badge-bg: #f3f4f6;
+      --badge-green-bg: #ecfdf5;
+      --badge-green-text: #065f46;
+      --badge-green-border: #a7f3d0;
+      --code-bg: #f9fafb;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      padding: 40px 20px;
+    }
+
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      padding: 48px;
+    }
+
+    header {
+      border-bottom: 2px solid var(--accent);
+      padding-bottom: 24px;
+      margin-bottom: 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 20px;
+    }
+
+    .header-content h1 {
+      font-family: "Georgia", "Merriweather", serif;
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--accent);
+      line-height: 1.3;
+      margin-bottom: 8px;
+    }
+
+    .header-content .subtitle {
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 12px;
+    }
+
+    .btn {
+      background: var(--accent);
+      color: #ffffff;
+      border: 1px solid var(--accent);
+      padding: 10px 18px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: background 0.15s ease;
+    }
+
+    .btn:hover {
+      background: var(--accent-hover);
+    }
+
+    .btn-secondary {
+      background: #ffffff;
+      color: var(--accent);
+      border: 1px solid var(--border-color);
+    }
+
+    .btn-secondary:hover {
+      background: #f3f4f6;
+    }
+
+    h2 {
+      font-family: "Georgia", "Merriweather", serif;
+      font-size: 20px;
+      color: var(--accent);
+      margin-top: 36px;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    h3 {
+      font-family: "Georgia", "Merriweather", serif;
+      font-size: 17px;
+      color: var(--text-main);
+      margin-top: 24px;
+      margin-bottom: 12px;
+    }
+
+    p {
+      margin-bottom: 14px;
+      color: var(--text-main);
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      font-size: 12px;
+      font-weight: 600;
+      background: var(--badge-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 2px;
+      font-family: monospace;
+    }
+
+    .badge-success {
+      background: var(--badge-green-bg);
+      color: var(--badge-green-text);
+      border-color: var(--badge-green-border);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+      font-size: 14px;
+    }
+
+    th, td {
+      padding: 12px 14px;
+      text-align: left;
+      border: 1px solid var(--border-color);
+    }
+
+    th {
+      background: #f8fafc;
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    tr:nth-child(even) {
+      background: #fafbfc;
+    }
+
+    .card {
+      border: 1px solid var(--border-color);
+      padding: 24px;
+      margin-bottom: 24px;
+      background: #ffffff;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .card-title {
+      font-family: "Georgia", "Merriweather", serif;
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .meta-list {
+      list-style: none;
+      margin-bottom: 16px;
+    }
+
+    .meta-list li {
+      margin-bottom: 6px;
+      font-size: 14px;
+    }
+
+    .meta-list strong {
+      color: var(--text-main);
+      display: inline-block;
+      min-width: 120px;
+    }
+
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border-color);
+      padding: 14px;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 13px;
+      line-height: 1.5;
+      overflow-x: auto;
+      margin: 14px 0;
+    }
+
+    code {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      background: #f1f5f9;
+      padding: 2px 5px;
+      font-size: 12.5px;
+      border: 1px solid #e2e8f0;
+    }
+
+    pre code {
+      background: transparent;
+      padding: 0;
+      border: none;
+    }
+
+    ul {
+      margin-left: 20px;
+      margin-bottom: 14px;
+    }
+
+    li {
+      margin-bottom: 6px;
+    }
+
+    .footer {
+      margin-top: 48px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    @media print {
+      body {
+        background: #ffffff;
+        padding: 0;
+      }
+      .container {
+        border: none;
+        padding: 0;
+        max-width: 100%;
+      }
+      .header-actions {
+        display: none;
+      }
+      pre {
+        white-space: pre-wrap;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <div class="header-content">
+      <h1>Engineering Resolution Report</h1>
+      <div class="subtitle">
+        Legal Analyzer Web Application &bull; Issues MED-01 to MED-05 &bull; Date: October 4, 2026
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="btn" onclick="window.print()">
+        <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+          <path d="M2.5 8a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1z"/>
+          <path d="M5 1a2 2 0 0 0-2 2v2H2a2 2 0 0 0-2 2v3a2 2 0 0 0 2 2h1v1a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-1h1a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-1V3a2 2 0 0 0-2-2H5zM4 3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2H4V3zm1 5a2 2 0 0 0-2 2v1H2a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v-1a2 2 0 0 0-2-2H5zm7 2v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1z"/>
+        </svg>
+        Download as PDF / Print
+      </button>
+    </div>
+  </header>
+
+  <section>
+    <h2>1. Executive Summary</h2>
+    <p>
+      This document certifies the successful resolution, regression validation, and architectural verification of five core medium-severity reliability, observability, and database performance issues within the Legal Analyzer backend and frontend applications.
+    </p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Issue ID</th>
+          <th>Label</th>
+          <th>Domain</th>
+          <th>Target Component</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>MED-01</strong></td>
+          <td><span class="badge">DATA-DB-003-CONNECTION-POOLING</span></td>
+          <td>Database Infrastructure</td>
+          <td>SQLAlchemy Engine Pooling</td>
+          <td><span class="badge badge-success">RESOLVED</span></td>
+        </tr>
+        <tr>
+          <td><strong>MED-02</strong></td>
+          <td><span class="badge">OBS-LOG-001-STRUCTURED-LOGGING</span></td>
+          <td>Observability &amp; Reliability</td>
+          <td>JSON Structured Logging</td>
+          <td><span class="badge badge-success">RESOLVED</span></td>
+        </tr>
+        <tr>
+          <td><strong>MED-03</strong></td>
+          <td><span class="badge">API-REST-001-PAGINATION</span></td>
+          <td>API Scalability</td>
+          <td>Limit/Offset Pagination</td>
+          <td><span class="badge badge-success">RESOLVED</span></td>
+        </tr>
+        <tr>
+          <td><strong>MED-04</strong></td>
+          <td><span class="badge">PERF-DB-001-RELATIONSHIP-EAGER-LOAD</span></td>
+          <td>Database Performance</td>
+          <td>N+1 Query Elimination</td>
+          <td><span class="badge badge-success">RESOLVED</span></td>
+        </tr>
+        <tr>
+          <td><strong>MED-05</strong></td>
+          <td><span class="badge">DATA-DB-004-INDEX-OPTIMIZATION</span></td>
+          <td>Database Performance</td>
+          <td>Foreign Key Indexes</td>
+          <td><span class="badge badge-success">RESOLVED</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>2. Technical Resolutions</h2>
+
+    <!-- MED-01 -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">MED-01: Production Connection Pooling on SQLAlchemy Engine</span>
+        <span class="badge badge-success">VERIFIED</span>
+      </div>
+      <ul class="meta-list">
+        <li><strong>Architecture Label:</strong> <code>DATA-DB-003-CONNECTION-POOLING</code></li>
+        <li><strong>Target Files:</strong> <code>backend/app/core/database.py</code>, <code>backend/tests/test_database_pooling.py</code></li>
+      </ul>
+      <p><strong>Problem:</strong> The SQLAlchemy engine was created with default unconfigured pooling, allocating only 5 connections without a recycle interval or pre-ping liveness test. High concurrency and idle periods led to dropped connections and pool exhaustion.</p>
+      <p><strong>Solution:</strong> Configured driver-adaptive connection pooling with <code>pool_size=10</code> (PostgreSQL) / <code>5</code> (SQLite), <code>max_overflow=20</code> / <code>10</code>, <code>pool_pre_ping=True</code> (proactive dead connection validation), and <code>pool_recycle=1800</code> (30-minute recycling).</p>
+      <pre><code>is_sqlite = settings.DATABASE_URL.startswith("sqlite")
+connect_args = {"check_same_thread": False} if is_sqlite else {}
+
+engine = create_engine(
+    settings.DATABASE_URL,
+    connect_args=connect_args,
+    pool_size=10 if not is_sqlite else 5,
+    max_overflow=20 if not is_sqlite else 10,
+    pool_pre_ping=True,
+    pool_recycle=1800,
+)</code></pre>
+      <p><strong>Verification:</strong> 4 unit tests in <code>tests/test_database_pooling.py</code> passed.</p>
+    </div>
+
+    <!-- MED-02 -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">MED-02: Application Structured Logging &amp; Print Elimination</span>
+        <span class="badge badge-success">VERIFIED</span>
+      </div>
+      <ul class="meta-list">
+        <li><strong>Architecture Label:</strong> <code>OBS-LOG-001-STRUCTURED-LOGGING</code></li>
+        <li><strong>Target Files:</strong> <code>backend/app/main.py</code>, <code>backend/app/core/logging.py</code>, <code>backend/app/workers/tasks.py</code>, <code>backend/app/services/storage_service.py</code>, <code>backend/app/services/ocr_service.py</code>, <code>backend/tests/test_logging.py</code></li>
+      </ul>
+      <p><strong>Problem:</strong> <code>setup_logging()</code> was never called in <code>main.py</code>, and background tasks/services used unformatted <code>print()</code> statements, preventing Sentry ingestion and structured log parsing.</p>
+      <p><strong>Solution:</strong> Implemented <code>JSONLogFormatter</code> for production environments, invoked <code>setup_logging()</code> before FastAPI creation, and replaced all raw <code>print()</code> calls with structured logging. Enforced confidentiality by logging only <code>document_id</code> references, never raw contract text.</p>
+      <pre><code>class JSONLogFormatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        log_data = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "level": record.levelname,
+            "name": record.name,
+            "message": record.getMessage(),
+            "module": record.module,
+            "line": record.lineno,
+        }
+        if record.exc_info:
+            log_data["exception"] = self.formatException(record.exc_info)
+        return json.dumps(log_data)</code></pre>
+      <p><strong>Verification:</strong> 5 unit tests in <code>tests/test_logging.py</code> passed, including an AST scanner confirming 0 print calls in <code>backend/app/</code>.</p>
+    </div>
+
+    <!-- MED-03 -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">MED-03: Limit/Offset Pagination on List Endpoints</span>
+        <span class="badge badge-success">VERIFIED</span>
+      </div>
+      <ul class="meta-list">
+        <li><strong>Architecture Label:</strong> <code>API-REST-001-PAGINATION</code></li>
+        <li><strong>Target Files:</strong> <code>backend/app/models/schemas.py</code>, <code>backend/app/api/v1/routers/documents/crud.py</code>, <code>backend/app/api/v1/routers/admin.py</code>, <code>frontend/lib/api/client.ts</code>, <code>frontend/app/(dashboard)/dashboard/page.tsx</code>, <code>backend/tests/test_pagination.py</code></li>
+      </ul>
+      <p><strong>Problem:</strong> <code>GET /api/v1/documents</code> and <code>GET /api/v1/admin/audit-logs</code> returned unbounded database arrays, posing severe performance and memory risks under heavy volume.</p>
+      <p><strong>Solution:</strong> Added Pydantic envelope models <code>PaginatedDocumentList</code> and <code>PaginatedAuditLogList</code> with <code>items</code>, <code>total</code>, <code>limit</code>, and <code>offset</code>. Added query parameters with validation (<code>limit</code> max 100, default 50; <code>offset</code> min 0, default 0). Updated TypeScript client and frontend dashboards to consume paginated items.</p>
+      <pre><code>@router.get("", response_model=PaginatedDocumentList)
+def list_documents(
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> PaginatedDocumentList:
+    base = db.query(Document).filter(Document.user_id == current_user.id)
+    return PaginatedDocumentList(
+        items=[DocumentListItemResponse.model_validate(d) for d in base.offset(offset).limit(limit).all()],
+        total=base.count(),
+        limit=limit,
+        offset=offset,
+    )</code></pre>
+      <p><strong>Verification:</strong> 6 unit tests in <code>tests/test_pagination.py</code> passed; <code>npx tsc --noEmit</code> passed with 0 errors.</p>
+    </div>
+
+    <!-- MED-04 -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">MED-04: Elimination of N+1 Query Anti-Pattern in get_document</span>
+        <span class="badge badge-success">VERIFIED</span>
+      </div>
+      <ul class="meta-list">
+        <li><strong>Architecture Label:</strong> <code>PERF-DB-001-RELATIONSHIP-EAGER-LOAD</code></li>
+        <li><strong>Target Files:</strong> <code>backend/app/models/database_models.py</code>, <code>backend/app/api/v1/routers/documents/crud.py</code>, <code>backend/tests/test_eager_loading.py</code></li>
+      </ul>
+      <p><strong>Problem:</strong> In <code>get_document</code>, all clauses were queried first, and then in a Python loop, individual SQL queries were issued for each clause's risk flags. A 60-clause contract caused 61 queries.</p>
+      <p><strong>Solution:</strong> Established ORM bidirectional relationships (<code>Clause.risk_flags</code> and <code>RiskFlag.clause</code>) with <code>selectin</code> lazy loading, and applied <code>options(joinedload(Clause.risk_flags))</code> in <code>get_document</code> to read risk flags directly from memory.</p>
+      <pre><code># ORM Relationship in Clause:
+risk_flags = relationship("RiskFlag", back_populates="clause", cascade="all, delete-orphan", lazy="selectin")
+
+# Eager-loaded query in get_document:
+clauses_db = (
+    db.query(Clause)
+    .options(joinedload(Clause.risk_flags))
+    .filter(Clause.document_id == document_id)
+    .order_by(Clause.clause_number.asc())
+    .all()
+)</code></pre>
+      <p><strong>Verification:</strong> 3 unit tests in <code>tests/test_eager_loading.py</code> passed, verifying 0 additional SQL queries across 10 clauses using SQLAlchemy cursor execution listeners.</p>
+    </div>
+
+    <!-- MED-05 -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">MED-05: Database Indexes on Foreign Key and Filtering Columns</span>
+        <span class="badge badge-success">VERIFIED</span>
+      </div>
+      <ul class="meta-list">
+        <li><strong>Architecture Label:</strong> <code>DATA-DB-004-INDEX-OPTIMIZATION</code></li>
+        <li><strong>Target Files:</strong> <code>backend/app/models/database_models.py</code>, <code>backend/alembic/versions/791aa19f3d22_add_foreign_key_indexes.py</code>, <code>backend/tests/test_model_indexes.py</code></li>
+      </ul>
+      <p><strong>Problem:</strong> High-cardinality foreign keys and filter columns lacked B-tree indexes, forcing sequential full table scans during document clause resolution, audit log queries, and chat lookups.</p>
+      <p><strong>Solution:</strong> Added <code>index=True</code> across 14 relational columns in <code>database_models.py</code> and generated Alembic migration <code>791aa19f3d22_add_foreign_key_indexes.py</code>.</p>
+      <pre><code># 14 Indexed Columns:
+1. Document.user_id         2. Clause.document_id          3. RiskFlag.clause_id
+4. ExtractedText.document_id 5. ComplianceCheck.document_id 6. LegalReference.document_id
+7. Report.document_id       8. AuditLog.document_id        9. AutomationRun.document_id
+10. ClauseReview.document_id 11. ClauseReview.clause_id   12. DocumentChunk.document_id
+13. ChatMessage.document_id 14. ChatMessage.conversation_id</code></pre>
+      <p><strong>Verification:</strong> 2 unit tests in <code>tests/test_model_indexes.py</code> passed, confirming column index properties and metadata table reflection.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. Complete Quality &amp; Verification Metrics</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Verification Scope</th>
+          <th>Command Executed</th>
+          <th>Result</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Engineered Test Suite (20 Tests)</td>
+          <td><code>pytest tests/test_database_pooling.py tests/test_logging.py tests/test_pagination.py tests/test_eager_loading.py tests/test_model_indexes.py</code></td>
+          <td><strong>20 passed</strong> (100% success)</td>
+        </tr>
+        <tr>
+          <td>Code Quality &amp; Style Linter</td>
+          <td><code>ruff check app tests</code></td>
+          <td><strong>0 errors / 0 warnings</strong></td>
+        </tr>
+        <tr>
+          <td>Frontend TypeScript Typecheck</td>
+          <td><code>npx tsc --noEmit</code></td>
+          <td><strong>0 errors</strong></td>
+        </tr>
+        <tr>
+          <td>Document Confidentiality Audit</td>
+          <td>Log content scan</td>
+          <td><strong>100% compliant</strong> (only document IDs logged)</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <div class="footer">
+    <div>Legal Analyzer Engineering Team &bull; Antigravity Agentic Platform</div>
+    <div>Report Document: <code>BUG_RESOLUTION_REPORT.md</code> / <code>.html</code></div>
+  </div>
+</div>
+
+</body>
+</html>

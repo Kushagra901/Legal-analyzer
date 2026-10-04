@@ -8,10 +8,11 @@
 
 # COMMAND ----------
 # Setup: Configure Spark session and Delta Lake
-from pyspark.sql.functions import col, current_timestamp, explode, lit, udf
-from pyspark.sql.types import StringType, StructType, StructField, ArrayType, FloatType
-from delta.tables import DeltaTable
 import uuid
+
+from delta.tables import DeltaTable
+from pyspark.sql.functions import col, current_timestamp, explode, lit, udf
+from pyspark.sql.types import ArrayType, StringType, StructField, StructType
 
 # Configure Unity Catalog and Delta properties
 spark.conf.set("spark.databricks.delta.properties.defaults.enableChangeDataFeed", "true")
@@ -19,7 +20,7 @@ spark.conf.set("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.ca
 
 print("Databricks session configured for Legal Analyzer.")
 
-# COMMAND ----------  
+# COMMAND ----------
 # Bronze Layer: Ingest raw documents from PostgreSQL via JDBC
 # MAGIC %md
 # MAGIC ## Ingest to Bronze
@@ -83,7 +84,7 @@ if not spark.catalog.tableExists(silver_table_name):
 else:
     # MERGE INTO Silver
     silver_table = DeltaTable.forName(spark, silver_table_name)
-    
+
     silver_table.alias("s") \
         .merge(
             df_silver_updates.alias("u"),
@@ -133,8 +134,8 @@ print("Gold layer aggregation complete.")
 # MAGIC View the aggregated risk distribution.
 
 display(spark.sql(f"""
-    SELECT 
-        status, 
+    SELECT
+        status,
         COUNT(id) as document_count,
         AVG(risk_score) as avg_risk_score,
         SUM(total_clauses) as total_clauses_analyzed

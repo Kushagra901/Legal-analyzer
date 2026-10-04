@@ -57,6 +57,7 @@ def test_admin_audit_logs_allowed_for_admin():
     try:
         response = client.get("/api/v1/admin/audit-logs")
         assert response.status_code == 200
-        assert isinstance(response.json(), list)
+        data = response.json()
+        assert isinstance(data.get("items") if isinstance(data, dict) else data, list)
     finally:
         app.dependency_overrides.clear()

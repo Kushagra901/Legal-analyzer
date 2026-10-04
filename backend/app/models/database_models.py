@@ -19,6 +19,7 @@ from sqlalchemy import (
     Text,
 )
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from sqlalchemy.types import CHAR, TypeDecorator
 
@@ -132,7 +133,7 @@ class Document(Base):
     __tablename__ = "documents"
 
     id = Column(GUID, primary_key=True, default=uuid.uuid4)
-    user_id = Column(GUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(GUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     filename: str = Column(String(255), nullable=False)
     status: str = Column(String(50), nullable=False, default="pending")
     uploaded_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -153,7 +154,7 @@ class AuditLog(Base):
     __tablename__ = "audit_logs"
 
     id = Column(GUID, primary_key=True, default=uuid.uuid4)
-    document_id = Column(GUID, ForeignKey("documents.id", ondelete="SET NULL"), nullable=True)
+    document_id = Column(GUID, ForeignKey("documents.id", ondelete="SET NULL"), nullable=True, index=True)
     action: str = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
@@ -165,7 +166,7 @@ class ExtractedText(Base):
     __tablename__ = "extracted_text"
 
     id = Column(GUID, primary_key=True, default=uuid.uuid4)
-    document_id = Column(GUID, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
+    document_id = Column(GUID, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True)
     content: str = Column(Text, nullable=False)
     method: str = Column(String(100), nullable=False)
     parsing_confidence: float = Column(Float, nullable=False, default=1.0)
@@ -178,12 +179,14 @@ class Clause(Base):
     __tablename__ = "clauses"
 
     id = Column(GUID, primary_key=True, default=uuid.uuid4)
-    document_id = Column(GUID, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
+    document_id = Column(GUID, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True)
     clause_type: str = Column(String(100), nullable=False)
     clause_text: str = Column(Text, nullable=False)
     embedding = Column(Vector, nullable=True)
     confidence_score: float = Column(Float, nullable=True)
     category: str = Column(String(255), nullable=True)
+
+    risk_flags = relationship("RiskFlag", back_populates="clause", cascade="all, delete-orphan", lazy="selectin")
 
 
 class RiskFlag(Base):
@@ -193,9 +196,11 @@ class RiskFlag(Base):
     __tablename__ = "risk_flags"
 
     id = Column(GUID, primary_key=True, default=uuid.uuid4)
-    clause_id = Column(GUID, ForeignKey("clauses.id", ondelete="CASCADE"), nullable=False)
+    clause_id = Column(GUID, ForeignKey("clauses.id", ondelete="CASCADE"), nullable=False, index=True)
     severity: str = Column(String(50), nullable=False)
     explanation: str = Column(Text, nullable=False)
+
+    clause = relationship("Clause", back_populates="risk_flags")
 
 
 class ComplianceCheck(Base):
@@ -205,7 +210,7 @@ class ComplianceCheck(Base):
     __tablename__ = "compliance_checks"
 
     id = Column(GUID, primary_key=True, default=uuid.uuid4)
-    document_id = Column(GUID, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
+    document_id = Column(GUID, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True)
     rule_set: str = Column(String(100), nullable=False)
     result: str = Column(Text, nullable=False)
 
@@ -217,7 +222,7 @@ class LegalReference(Base):
     __tablename__ = "legal_references"
 
     id = Column(GUID, primary_key=True, default=uuid.uuid4)
-    document_id = Column(GUID, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
+    document_id = Column(GUID, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True)
     source: str = Column(String(255), nullable=False)
     citation: str = Column(String(255), nullable=False)
 
@@ -229,7 +234,7 @@ class Report(Base):
     __tablename__ = "reports"
 
     id = Column(GUID, primary_key=True, default=uuid.uuid4)
-    document_id = Column(GUID, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
+    document_id = Column(GUID, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True)
     format: str = Column(String(50), nullable=False)
     file_url: str = Column(Text, nullable=False)
 
@@ -254,7 +259,7 @@ class AutomationRun(Base):
     __tablename__ = "automation_runs"
 
     id = Column(GUID, primary_key=True, default=uuid.uuid4)
-    document_id = Column(GUID, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
+    document_id = Column(GUID, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True)
     workflow_name: str = Column(String(255), nullable=False)
     status: str = Column(String(100), nullable=False)
     retry_count: int = Column(Integer, nullable=False, default=0)
@@ -269,8 +274,8 @@ class ClauseReview(Base):
     __tablename__ = "clause_reviews"
 
     id = Column(GUID, primary_key=True, default=uuid.uuid4)
-    clause_id = Column(GUID, ForeignKey("clauses.id", ondelete="CASCADE"), nullable=False)
-    document_id = Column(GUID, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
+    clause_id = Column(GUID, ForeignKey("clauses.id", ondelete="CASCADE"), nullable=False, index=True)
+    document_id = Column(GUID, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True)
     user_id = Column(GUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     decision: str = Column(String(50), nullable=False, default="pending")
     note: str = Column(Text, nullable=True)
@@ -285,7 +290,7 @@ class DocumentChunk(Base):
     __tablename__ = "document_chunks"
 
     id = Column(GUID, primary_key=True, default=uuid.uuid4)
-    document_id = Column(GUID, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
+    document_id = Column(GUID, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True)
     chunk_text = Column(Text, nullable=False)
     chunk_index = Column(Integer, nullable=False)
     embedding = Column(VectorType(768), nullable=True)
@@ -300,9 +305,9 @@ class ChatMessage(Base):
     __tablename__ = "chat_messages"
 
     id = Column(GUID, primary_key=True, default=uuid.uuid4)
-    document_id = Column(GUID, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
+    document_id = Column(GUID, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True)
     user_id = Column(GUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
-    conversation_id = Column(GUID, nullable=False, default=uuid.uuid4)
+    conversation_id = Column(GUID, nullable=False, default=uuid.uuid4, index=True)
     role: str = Column(String(20), nullable=False)
     content: str = Column(Text, nullable=False)
     citations = Column(JSON, default=list)

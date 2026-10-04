@@ -10,11 +10,10 @@ Orchestrates the end-to-end document analysis workflow:
 Schedule: Runs every hour to process newly uploaded documents.
 Retries: 2 retries with 5-minute delay on failure.
 """
-from datetime import datetime, timedelta
 import logging
+from datetime import datetime, timedelta
 
 from airflow.decorators import dag, task
-from airflow.models import Variable
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +36,7 @@ default_args = {
     tags=['legal', 'nlp', 'medallion']
 )
 def document_processing_dag():
-    
+
     @task()
     def extract_raw_text():
         """Extracts text from raw documents (PDF/Word)."""
@@ -81,13 +80,13 @@ def document_processing_dag():
 
     # Define workflow dependencies
     ext_result = extract_raw_text()
-    
+
     bronze = transform_bronze(ext_result)
     analysis = analyze_clauses(ext_result)
-    
+
     silver = transform_silver(bronze, analysis)
     gold = transform_gold(silver)
-    
+
     qc = quality_check(gold)
     notify(qc)
 

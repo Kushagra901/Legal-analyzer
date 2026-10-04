@@ -4,13 +4,13 @@ Handles audit logs and pipeline monitoring endpoints.
 """
 
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.models import AuditLog, Document, User
-from app.models.schemas import AuditLogItemResponse
+from app.models.schemas import AuditLogItemResponse, PaginatedAuditLogList
 
 router = APIRouter()
 
@@ -28,16 +28,25 @@ def require_admin(current_user: User = Depends(get_current_user)) -> User:
     return current_user
 
 
-@router.get("/audit-logs", response_model=list[AuditLogItemResponse])
+@router.get("/audit-logs", response_model=PaginatedAuditLogList)
 def get_audit_logs(
+    limit: int = Query(default=50, ge=1, le=100, description="Max audit logs to return"),
+    offset: int = Query(default=0, ge=0, description="Number of audit logs to skip"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin)
-) -> list[AuditLogItemResponse]:
+    current_user: User = Depends(require_admin),
+) -> PaginatedAuditLogList:
     """
-    Retrieve historical audit logs for admin overview.
+    Retrieve historical audit logs for admin overview with pagination.
     Enforces administrator access control via require_admin dependency.
     """
-    logs = db.query(AuditLog).order_by(AuditLog.created_at.desc()).all()
+    total = db.query(AuditLog).count()
+    logs = (
+        db.query(AuditLog)
+        .order_by(AuditLog.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
     results = []
 
     for log in logs:
@@ -57,4 +66,9 @@ def get_audit_logs(
             timestamp=log.created_at.strftime("%Y-%m-%d %H:%M:%S") if log.created_at else ""
         ))
 
-    return results
+    return PaginatedAuditLogList(
+        items=results,
+        total=total,
+        limit=limit,
+        offset=offset,
+    )

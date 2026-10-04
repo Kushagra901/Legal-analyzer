@@ -9,18 +9,17 @@ Designed for Databricks Delta Lake but includes a local PostgreSQL implementatio
 for development and testing.
 """
 import json
-from datetime import datetime, timezone
-from enum import Enum
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime
+from enum import StrEnum
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import text
 
-from app.core.config import settings
 
-class MedallionLayer(str, Enum):
+class MedallionLayer(StrEnum):
     BRONZE = "bronze"
     SILVER = "silver"
     GOLD = "gold"
@@ -29,8 +28,8 @@ class LakehouseRecord(BaseModel):
     layer: MedallionLayer
     table_name: str
     record_id: UUID
-    data: Dict[str, Any]
-    ingested_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    data: dict[str, Any]
+    ingested_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     source_system: str = "legal_analyzer_core"
 
 class LakehouseService:
@@ -74,12 +73,12 @@ class LakehouseService:
         """Writes raw extraction to bronze layer."""
         record_id = __import__("uuid").uuid4()
         data = {"raw_text": raw_text, "extraction_method": method}
-        
+
         insert_sql = text("""
             INSERT INTO lakehouse_bronze (record_id, document_id, table_name, data, source_system)
             VALUES (:record_id, :document_id, :table_name, :data, :source_system)
         """)
-        
+
         self.db.execute(insert_sql, {
             "record_id": record_id,
             "document_id": document_id,
@@ -94,7 +93,7 @@ class LakehouseService:
         # Simulated read from bronze
         bronze_sql = text("SELECT data FROM lakehouse_bronze WHERE document_id = :document_id")
         bronze_record = self.db.execute(bronze_sql, {"document_id": document_id}).first()
-        
+
         if not bronze_record:
             return
 
@@ -102,15 +101,15 @@ class LakehouseService:
         # Simulate cleaning and validation
         cleaned_text = raw_data.get("raw_text", "").strip().lower()
         clauses = [{"clause_id": str(__import__("uuid").uuid4()), "content": cleaned_text[:100]}]
-        
+
         record_id = __import__("uuid").uuid4()
         silver_data = {"cleaned_text_length": len(cleaned_text), "clauses": clauses}
-        
+
         insert_sql = text("""
             INSERT INTO lakehouse_silver (record_id, document_id, table_name, data, source_system)
             VALUES (:record_id, :document_id, :table_name, :data, :source_system)
         """)
-        
+
         self.db.execute(insert_sql, {
             "record_id": record_id,
             "document_id": document_id,
@@ -124,21 +123,21 @@ class LakehouseService:
         """Reads silver, computes aggregated metrics, writes to gold."""
         silver_sql = text("SELECT data FROM lakehouse_silver WHERE document_id = :document_id")
         silver_record = self.db.execute(silver_sql, {"document_id": document_id}).first()
-        
+
         if not silver_record:
             return
 
         silver_data = silver_record[0]
         clause_count = len(silver_data.get("clauses", []))
-        
+
         record_id = __import__("uuid").uuid4()
         gold_data = {"total_clauses": clause_count, "risk_score": 0.15, "summary": "Aggregated stats"}
-        
+
         insert_sql = text("""
             INSERT INTO lakehouse_gold (record_id, document_id, table_name, data, source_system)
             VALUES (:record_id, :document_id, :table_name, :data, :source_system)
         """)
-        
+
         self.db.execute(insert_sql, {
             "record_id": record_id,
             "document_id": document_id,
@@ -154,22 +153,22 @@ class LakehouseService:
         self.transform_to_silver(document_id)
         self.aggregate_to_gold(document_id)
 
-    def get_layer_stats(self, layer: MedallionLayer) -> Dict[str, Any]:
+    def get_layer_stats(self, layer: MedallionLayer) -> dict[str, Any]:
         """Returns record counts and freshness per layer."""
         table = f"lakehouse_{layer.value}"
         count_sql = text(f"SELECT COUNT(*) FROM {table}")
         fresh_sql = text(f"SELECT MAX(ingested_at) FROM {table}")
-        
+
         count = self.db.execute(count_sql).scalar()
         last_ingested = self.db.execute(fresh_sql).scalar()
-        
+
         return {
             "layer": layer.value,
             "record_count": count,
             "last_ingested_at": last_ingested
         }
 
-    def get_data_lineage(self, document_id: UUID) -> Dict[str, Any]:
+    def get_data_lineage(self, document_id: UUID) -> dict[str, Any]:
         """Traces a document through all three layers."""
         lineage = {}
         for layer in MedallionLayer:

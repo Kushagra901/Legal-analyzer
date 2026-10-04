@@ -18,15 +18,17 @@ Resources provided:
 - legal://corpus/risk-summary — Corpus-wide risk summary
 """
 
-from typing import Any, Dict, List, Optional
-from sqlalchemy.orm import Session
-from sqlalchemy import func
+from typing import Any
+
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+
+from app.core.database import get_db
 
 # Assumed models based on instructions
-from app.models.database_models import Document, Clause, RiskFlag, ComplianceCheck, AuditLog
-from app.core.database import get_db
+from app.models.database_models import AuditLog, Clause, ComplianceCheck, Document, RiskFlag
 
 TOOLS = [
     {
@@ -102,7 +104,7 @@ TOOLS = [
 ]
 
 
-def search_documents(db: Session, query: str = "", status_filter: str = None, limit: int = 10) -> Dict[str, Any]:
+def search_documents(db: Session, query: str = "", status_filter: str = None, limit: int = 10) -> dict[str, Any]:
     """Search documents by filename or status."""
     q = db.query(Document)
     if query:
@@ -118,7 +120,7 @@ def search_documents(db: Session, query: str = "", status_filter: str = None, li
     }
 
 
-def get_document_analysis(db: Session, document_id: str) -> Dict[str, Any]:
+def get_document_analysis(db: Session, document_id: str) -> dict[str, Any]:
     """Get full analysis for a document by ID."""
     doc = db.query(Document).filter(Document.id == document_id).first()
     if not doc:
@@ -139,7 +141,7 @@ def get_document_analysis(db: Session, document_id: str) -> Dict[str, Any]:
     }
 
 
-def search_clauses(db: Session, query: str, severity_filter: str = None, limit: int = 10) -> Dict[str, Any]:
+def search_clauses(db: Session, query: str, severity_filter: str = None, limit: int = 10) -> dict[str, Any]:
     """Search clauses by text content."""
     q = db.query(Clause).filter(Clause.text.ilike(f"%{query}%"))
     if severity_filter:
@@ -154,24 +156,24 @@ def search_clauses(db: Session, query: str, severity_filter: str = None, limit: 
     }
 
 
-def get_risk_summary(db: Session) -> Dict[str, Any]:
+def get_risk_summary(db: Session) -> dict[str, Any]:
     """Get risk distribution summary for the corpus."""
     risk_counts = db.query(Document.risk_level, func.count(Document.id)).group_by(Document.risk_level).all()
     avg_score = db.query(func.avg(Document.safety_score)).scalar()
-    
+
     return {
         "risk_distribution": {str(level): count for level, count in risk_counts},
         "average_safety_score": float(avg_score) if avg_score else None
     }
 
 
-def check_compliance(db: Session, document_id: str, rule_set: str) -> Dict[str, Any]:
+def check_compliance(db: Session, document_id: str, rule_set: str) -> dict[str, Any]:
     """Run compliance check against a rule set."""
     # Simplified placeholder logic
     doc = db.query(Document).filter(Document.id == document_id).first()
     if not doc:
         return {"error": "Document not found"}
-        
+
     return {
         "document_id": document_id,
         "rule_set": rule_set,
@@ -180,7 +182,7 @@ def check_compliance(db: Session, document_id: str, rule_set: str) -> Dict[str, 
     }
 
 
-def get_audit_trail(db: Session, document_id: str, limit: int = 50) -> Dict[str, Any]:
+def get_audit_trail(db: Session, document_id: str, limit: int = 50) -> dict[str, Any]:
     """Retrieve audit log for a document."""
     logs = db.query(AuditLog).filter(AuditLog.document_id == document_id).order_by(AuditLog.created_at.desc()).limit(limit).all()
     return {
@@ -231,7 +233,7 @@ class MCPServer:
             elif method == "tools/call":
                 tool_name = params.get("name")
                 tool_args = params.get("arguments", {})
-                
+
                 if tool_name in self.tool_handlers:
                     handler = self.tool_handlers[tool_name]
                     result = handler(self.db, **tool_args)
@@ -268,7 +270,7 @@ class MCPServer:
                     content = str(summary)
                 else:
                     content = '{"error": "Resource not found"}'
-                    
+
                 response["result"] = {
                     "contents": [
                         {"uri": uri, "mimeType": "application/json", "text": content}

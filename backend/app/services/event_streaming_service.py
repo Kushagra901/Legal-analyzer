@@ -8,9 +8,10 @@ Uses confluent-kafka Python client with Avro-style JSON schema validation.
 """
 import json
 import logging
-from datetime import datetime, timezone
-from enum import Enum
-from typing import Any, Callable, Dict, Optional
+from collections.abc import Callable
+from datetime import UTC, datetime
+from enum import StrEnum
+from typing import Any, Optional
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field
@@ -28,7 +29,7 @@ except ImportError:
     KAFKA_AVAILABLE = False
 
 
-class EventType(str, Enum):
+class EventType(StrEnum):
     DOCUMENT_UPLOADED = "document.uploaded"
     DOCUMENT_PROCESSING = "document.processing"
     DOCUMENT_ANALYZED = "document.analyzed"
@@ -42,10 +43,10 @@ class DocumentEvent(BaseModel):
     event_id: UUID = Field(default_factory=uuid4)
     event_type: str
     document_id: UUID
-    user_id: Optional[UUID] = None
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    payload: Dict[str, Any] = Field(default_factory=dict)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    user_id: UUID | None = None
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    payload: dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class EventStreamingService:
@@ -80,8 +81,8 @@ class EventStreamingService:
         self,
         event_type: EventType,
         document_id: UUID,
-        payload: Dict[str, Any],
-        user_id: Optional[UUID] = None
+        payload: dict[str, Any],
+        user_id: UUID | None = None
     ) -> None:
         """Publishes a document event to Kafka."""
         if not self.producer:
@@ -94,9 +95,9 @@ class EventStreamingService:
             user_id=user_id,
             payload=payload
         )
-        
+
         topic = f"{self.topic_prefix}.{event_type.value}"
-        
+
         def delivery_report(err: Any, msg: Any) -> None:
             if err is not None:
                 logger.error(f"Message delivery failed: {err}")
@@ -128,12 +129,12 @@ class EventStreamingService:
             return
 
         consumer.subscribe([topic])
-        
+
         try:
             messages_processed = 0
             while messages_processed < max_messages:
                 msg = consumer.poll(1.0)
-                
+
                 if msg is None:
                     continue
                 if msg.error():
@@ -150,11 +151,11 @@ class EventStreamingService:
                     messages_processed += 1
                 except Exception as e:
                     logger.error(f"Error processing message: {e}")
-                    
+
         finally:
             consumer.close()
 
-    def publish_document_uploaded(self, document_id: UUID, filename: str, user_id: Optional[UUID] = None) -> None:
+    def publish_document_uploaded(self, document_id: UUID, filename: str, user_id: UUID | None = None) -> None:
         """Convenience method to publish a document uploaded event."""
         self.publish_event(
             EventType.DOCUMENT_UPLOADED,
@@ -168,7 +169,7 @@ class EventStreamingService:
         document_id: UUID,
         safety_score: float,
         risk_level: str,
-        user_id: Optional[UUID] = None
+        user_id: UUID | None = None
     ) -> None:
         """Convenience method to publish an analysis completed event."""
         self.publish_event(
@@ -183,7 +184,7 @@ class EventStreamingService:
         document_id: UUID,
         risk_level: str,
         high_risk_clauses: list,
-        user_id: Optional[UUID] = None
+        user_id: UUID | None = None
     ) -> None:
         """Convenience method to publish a high risk alert event."""
         self.publish_event(
