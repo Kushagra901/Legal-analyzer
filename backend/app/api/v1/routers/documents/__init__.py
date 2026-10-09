@@ -5,7 +5,12 @@ Consolidates CRUD, analysis, clause review, and document chat sub-routers into a
 
 from fastapi import APIRouter
 
-from app.api.v1.routers.documents.analysis import router as analysis_router
+from app.api.v1.routers.documents.analysis import (
+    router as analysis_router,
+)
+from app.api.v1.routers.documents.analysis import (
+    run_report,
+)
 from app.api.v1.routers.documents.chat import router as chat_router
 from app.api.v1.routers.documents.crud import (
     ensure_test_user_exists,
@@ -32,5 +37,7 @@ __all__ = [
     "chat_router",
     "ensure_test_user_exists",
     "trigger_n8n_webhook",
+    "run_report",
     "LLMService",
 ]
+

@@ -8,7 +8,7 @@ import json
 import logging
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -38,7 +38,9 @@ from app.services.deep_extraction_service import DeepExtractionService
 from app.services.legal_chunker import split_legal_clauses
 from app.services.llm_service import LLMService
 from app.services.ollama_service import OllamaService
+from app.services.report_generator_service import ReportGeneratorService
 from app.services.risk_service import RiskService
+from app.services.storage_service import StorageService
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -484,23 +486,51 @@ def run_compliance(
 def run_report(
     request: Request,
     document_id: str,
+    format: str = Query("pdf", pattern="^(pdf|docx)$"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ) -> AnalysisStatusResponse:
-    """Generate or update report record."""
+    """Generate or update report record with real in-memory PDF/DOCX generation and storage persistence."""
     doc = get_accessible_document(db, document_id, current_user)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found.")
 
-    db.query(Report).filter(Report.document_id == doc.id).delete()
+    report_data = ReportGeneratorService.assemble_report_data(doc, db)
+    generator = ReportGeneratorService()
+
+    if format == "docx":
+        file_bytes = generator.generate_docx(report_data)
+        content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        ext = "docx"
+        storage_path = f"reports/{doc.id}/review_memorandum.docx"
+    else:
+        file_bytes = generator.generate_pdf(report_data)
+        content_type = "application/pdf"
+        ext = "pdf"
+        storage_path = f"reports/{doc.id}/review_memorandum.pdf"
+
+    storage_service = StorageService()
+    try:
+        storage_service.upload_file(
+            file_data=file_bytes,
+            file_path=storage_path,
+            content_type=content_type
+        )
+        report_url = storage_service.get_public_url(storage_path)
+    except Exception as e:
+        logger.warning("Storage upload failed or in mock mode: %s", e)
+        report_url = f"/api/v1/reports/{doc.id}/download?format={ext}"
+
+    db.query(Report).filter(Report.document_id == doc.id, Report.format == ext).delete()
     db_report = Report(
         id=uuid.uuid4(),
         document_id=doc.id,
-        format="pdf",
-        file_url=f"/reports/{document_id}.pdf"
+        format=ext,
+        file_url=report_url
     )
     db.add(db_report)
     db.commit()
+    db.refresh(db_report)
 
     return AnalysisStatusResponse(
         status="report_generated",

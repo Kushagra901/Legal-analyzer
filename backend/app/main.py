@@ -16,6 +16,7 @@ from app.api.v1.routers import admin, analytics, auth, documents, reports, syste
 from app.core.config import settings
 from app.core.limiter import limiter
 from app.core.logging import setup_logging
+from app.core.request_id import RequestIDMiddleware
 from app.core.security_headers import SecurityHeadersMiddleware
 from app.models.schemas import HealthResponse
 from app.services.mcp_server import create_mcp_router
@@ -51,13 +52,18 @@ app.add_middleware(SlowAPIMiddleware)
 # Configure Security Headers
 app.add_middleware(SecurityHeadersMiddleware)
 
+# Configure Request ID Correlation
+app.add_middleware(RequestIDMiddleware)
+
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[settings.FRONTEND_URL],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Request-ID", "X-Internal-Token"],
+    expose_headers=["X-Request-ID"],
+    max_age=600,
 )
 
 # Register API Routers under /api/v1 prefix

@@ -18,6 +18,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.core.database import Base
 from app.models.database_models import (
     ChatMessage,
+    Clause,
     Document,
     DocumentChunk,
     User,
@@ -217,3 +218,28 @@ def test_chat_messages_db_persistence(db_session, sample_document, sample_user):
     assert history[1].role == "assistant"
     assert "90 days" in history[1].content
     assert history[1].confidence == "HIGH"
+
+
+def test_clause_vector_type_sqlite_persistence(db_session, sample_document):
+    """
+    Ensure Clause embedding with VectorType(768) persists and serializes cleanly on SQLite.
+    """
+    dummy_vector = [0.123] * 768
+    clause = Clause(
+        id=uuid.uuid4(),
+        document_id=sample_document.id,
+        clause_type="INDEMNIFICATION",
+        clause_text="Party A shall indemnify Party B...",
+        embedding=dummy_vector,
+        confidence_score=0.95,
+        category="Risk",
+    )
+    db_session.add(clause)
+    db_session.commit()
+
+    retrieved = db_session.query(Clause).filter(Clause.id == clause.id).first()
+    assert retrieved is not None
+    assert isinstance(retrieved.embedding, list)
+    assert len(retrieved.embedding) == 768
+    assert retrieved.embedding[0] == pytest.approx(0.123)
+

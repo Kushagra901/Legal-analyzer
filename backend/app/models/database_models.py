@@ -137,6 +137,12 @@ class Document(Base):
     filename: str = Column(String(255), nullable=False)
     status: str = Column(String(50), nullable=False, default="pending")
     uploaded_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False
+    )
     summary: str = Column(Text, nullable=True)
     safety_score: int = Column(Integer, nullable=True)
     risk_level: str = Column(String(50), nullable=True)
@@ -182,9 +188,15 @@ class Clause(Base):
     document_id = Column(GUID, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True)
     clause_type: str = Column(String(100), nullable=False)
     clause_text: str = Column(Text, nullable=False)
-    embedding = Column(Vector, nullable=True)
+    embedding = Column(VectorType(768), nullable=True)
     confidence_score: float = Column(Float, nullable=True)
     category: str = Column(String(255), nullable=True)
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False
+    )
 
     risk_flags = relationship("RiskFlag", back_populates="clause", cascade="all, delete-orphan", lazy="selectin")
 
@@ -280,6 +292,12 @@ class ClauseReview(Base):
     decision: str = Column(String(50), nullable=False, default="pending")
     note: str = Column(Text, nullable=True)
     reviewed_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False
+    )
 
 
 class DocumentChunk(Base):

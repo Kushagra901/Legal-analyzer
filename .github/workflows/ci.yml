@@ -31,7 +31,7 @@ jobs:
       - name: Install Dependencies & Tools
         run: |
           python -m pip install --upgrade pip
-          pip install ruff pip-audit -r backend/requirements.txt
+          pip install ruff pip-audit pytest-cov -r backend/requirements.txt
 
       - name: Lint Backend with Ruff
         run: |
@@ -41,10 +41,10 @@ jobs:
         run: |
           pip-audit -r backend/requirements.txt
 
-      - name: Run Pytest Suite (Core + Analytics + Data Quality)
+      - name: Run Backend Tests with Coverage
         run: |
           cd backend
-          pytest -v --tb=short
+          pytest --cov=app --cov-report=term-missing --cov-report=xml --cov-fail-under=75
 
   frontend:
     name: Frontend Build Check
@@ -65,6 +65,11 @@ jobs:
         run: |
           cd frontend
           npm ci --legacy-peer-deps
+
+      - name: Run Frontend Unit Tests
+        run: |
+          cd frontend
+          npm test
 
       - name: Build Frontend Next.js Application
         run: |

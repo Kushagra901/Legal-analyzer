@@ -135,6 +135,7 @@ def test_valid_pdf_magic_bytes_accepted():
 
     with patch("app.services.storage_service.StorageService.upload_file", return_value="documents/mock-uuid/test.pdf"), \
          patch("app.services.ocr_service.OCRService.process_document", return_value=("Extracted text", "native", 1.0)), \
+         patch("app.workers.tasks.execute_document_analysis"), \
          patch("app.api.v1.routers.documents.trigger_n8n_webhook"):
         try:
             response = client.post(
@@ -147,3 +148,25 @@ def test_valid_pdf_magic_bytes_accepted():
             assert response.json()["status"] == "processing"
         finally:
             app.dependency_overrides.clear()
+
+
+def test_streaming_upload_rejects_oversized_file():
+    """
+    Ensure streaming upload terminates immediately when accumulated chunk bytes exceed 10MB limit.
+    """
+    import io
+    oversized_data = b"%PDF" + (b"0" * (10 * 1024 * 1024 + 64 * 1024))
+    app.dependency_overrides[get_current_user] = override_get_current_user
+    app.dependency_overrides[get_db] = lambda: MagicMock()
+
+    try:
+        response = client.post(
+            "/api/v1/documents",
+            files={"file": ("oversized.pdf", io.BytesIO(oversized_data), "application/pdf")},
+            headers={"Authorization": "Bearer mock-token"},
+        )
+        assert response.status_code == 400
+        assert "File size exceeds maximum allowed limit of 10MB." in response.json()["detail"]
+    finally:
+        app.dependency_overrides.clear()
+
