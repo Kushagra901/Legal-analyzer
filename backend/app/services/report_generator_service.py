@@ -93,6 +93,96 @@ class ReportGeneratorService:
         "the counsel of a licensed attorney. All confidence indicators and risk flags should be independently verified."
     )
 
+    @staticmethod
+    def assemble_report_data(doc: Any, db: Any) -> dict[str, Any]:
+        """
+        Assemble the complete structured findings for a document into a report payload dictionary.
+        """
+        import json
+
+        from app.models import Clause, ComplianceCheck, LegalReference, RiskFlag
+
+        # Load citations
+        citations_db = db.query(LegalReference).filter(LegalReference.document_id == doc.id).all()
+        citations = [
+            {"source": cit.source, "citation": cit.citation}
+            for cit in citations_db
+        ]
+
+        # Load clauses and risk flags
+        clauses_db = db.query(Clause).filter(Clause.document_id == doc.id).all()
+        clauses = []
+        risk_flags = []
+        recommendations = []
+
+        for c_db in clauses_db:
+            flags = getattr(c_db, "risk_flags", None) or db.query(RiskFlag).filter(RiskFlag.clause_id == c_db.id).all()
+            severity = flags[0].severity if flags else "LOW"
+            explanation = flags[0].explanation if flags else ""
+
+            if severity in ("MEDIUM", "HIGH") and explanation:
+                recommendations.append(f"Review the {c_db.clause_type} clause: {explanation}")
+                risk_flags.append({
+                    "clause_type": c_db.clause_type,
+                    "severity": severity,
+                    "explanation": explanation
+                })
+
+            clauses.append({
+                "id": str(c_db.id),
+                "clause_type": c_db.clause_type,
+                "type": c_db.clause_type,
+                "clause_text": c_db.clause_text,
+                "text": c_db.clause_text,
+                "severity": severity,
+                "risk_level": severity,
+                "explanation": explanation or f"Standard {c_db.clause_type} clause.",
+                "category": c_db.category or "General & Boilerplate",
+                "confidence_score": c_db.confidence_score if c_db.confidence_score is not None else 0.95
+            })
+
+        # Load compliance violations
+        violations = []
+        compliance_db = db.query(ComplianceCheck).filter(ComplianceCheck.document_id == doc.id).first()
+        if compliance_db:
+            try:
+                raw_violations = json.loads(compliance_db.result)
+                for v in raw_violations:
+                    violations.append(v)
+                    v_text = str(v)
+                    recommendations.append(v_text)
+                    risk_flags.append({
+                        "clause_type": "Compliance Policy Audit",
+                        "severity": "HIGH",
+                        "explanation": v_text
+                    })
+            except Exception:
+                pass
+
+        if not recommendations:
+            recommendations.append("Confirm all provisions align with standard organizational templates and practices.")
+            recommendations.append("Ensure the designated governing jurisdiction is acceptable for your operations before formal execution.")
+
+        return {
+            "document_id": str(doc.id),
+            "filename": doc.filename,
+            "uploaded_at": doc.uploaded_at.isoformat() if doc.uploaded_at else None,
+            "safety_score": doc.safety_score if doc.safety_score is not None else 100,
+            "risk_level": doc.risk_level if doc.risk_level is not None else "LOW",
+            "summary": doc.summary or "Analysis complete.",
+            "document_overview": doc.document_overview or doc.summary or "Document analysis completed.",
+            "parties": doc.parties or [],
+            "key_dates": doc.key_dates or {},
+            "missing_sections": doc.missing_sections or [],
+            "plain_english_summary": doc.plain_english_summary or doc.summary or "Summary of contractual provisions.",
+            "clauses": clauses,
+            "risk_flags": risk_flags,
+            "recommendations": recommendations,
+            "citations": citations,
+            "compliance_violations": violations
+        }
+
+
     def __init__(self) -> None:
         self.navy = colors.HexColor("#0F172A")
         self.navy_light = colors.HexColor("#1E293B")
@@ -189,7 +279,7 @@ class ReportGeneratorService:
         title_style = ParagraphStyle(
             "DocTitle",
             parent=styles["Heading1"],
-            fontName="Helvetica-Bold",
+            fontName="Times-Bold",
             fontSize=18,
             leading=22,
             textColor=self.navy,
@@ -209,7 +299,7 @@ class ReportGeneratorService:
         section_heading_style = ParagraphStyle(
             "SectionHeading",
             parent=styles["Heading2"],
-            fontName="Helvetica-Bold",
+            fontName="Times-Bold",
             fontSize=12,
             leading=15,
             textColor=self.navy,
@@ -221,7 +311,7 @@ class ReportGeneratorService:
         subsection_heading_style = ParagraphStyle(
             "SubsectionHeading",
             parent=styles["Heading3"],
-            fontName="Helvetica-Bold",
+            fontName="Times-Bold",
             fontSize=10,
             leading=13,
             textColor=self.navy_light,
@@ -465,36 +555,82 @@ class ReportGeneratorService:
         story.append(Spacer(1, 4))
 
         # ---------------------------------------------------------------------
-        # 5. Risk Flags
+        # 5. Risk Flags Table & Compliance Violations
         # ---------------------------------------------------------------------
         story.append(Paragraph("5.0 Risk Flags & Warning Items", section_heading_style))
         story.append(HRFlowable(width="100%", thickness=1, color=self.border_gray, spaceBefore=1, spaceAfter=6))
 
         if data["risk_flags"]:
+            rf_table_data = [
+                [
+                    Paragraph("<b>#</b>", finding_num_style),
+                    Paragraph("<b>Clause / Risk Item</b>", finding_num_style),
+                    Paragraph("<b>Severity</b>", finding_num_style),
+                    Paragraph("<b>Analysis & Risk Explanation</b>", finding_num_style),
+                ]
+            ]
             for idx, rf in enumerate(data["risk_flags"], 1):
                 sev = str(rf.get("severity", "MEDIUM")).upper()
                 c_name = rf.get("clause_type") or "Risk Item"
                 exp = rf.get("explanation") or ""
                 sev_color = self.color_high.hexval() if sev == "HIGH" else (self.color_medium.hexval() if sev == "MEDIUM" else self.color_low.hexval())
 
-                rf_header = f"<b>Risk 5.{idx}: {c_name}</b> — [<font color='{sev_color}'><b>{sev} PRIORITY</b></font>]"
-                rf_content = [
-                    Paragraph(rf_header, finding_num_style),
-                    Paragraph(f"<b>Risk Analysis:</b> {exp}", finding_text_style)
-                ]
+                rf_table_data.append([
+                    Paragraph(f"5.{idx}", body_style),
+                    Paragraph(f"<b>{c_name}</b>", body_style),
+                    Paragraph(f"<font color='{sev_color}'><b>{sev}</b></font>", body_style),
+                    Paragraph(exp, body_style),
+                ])
 
-                rf_table = Table([[rf_content]], colWidths=[532])
-                rf_table.setStyle(TableStyle([
-                    ("BACKGROUND", (0, 0), (-1, -1), self.bg_warn if sev == "HIGH" else self.bg_light),
-                    ("BOX", (0, 0), (-1, -1), 0.5, self.color_high if sev == "HIGH" else self.border_gray),
-                    ("TOPPADDING", (0, 0), (-1, -1), 5),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 8),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-                ]))
-                story.append(KeepTogether([rf_table, Spacer(1, 4)]))
+            rf_table = Table(rf_table_data, colWidths=[32, 130, 70, 300])
+            rf_table.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), self.bg_light),
+                ("BOX", (0, 0), (-1, -1), 0.5, self.border_gray),
+                ("INNERGRID", (0, 0), (-1, -1), 0.5, self.border_gray),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+            ]))
+            story.append(KeepTogether([rf_table, Spacer(1, 4)]))
         else:
             story.append(Paragraph("5.1 No critical risk flags detected in the analyzed clauses.", body_style))
+        story.append(Spacer(1, 6))
+
+        # Compliance Violations Subsection Table
+        story.append(Paragraph("5.5 Compliance Policy Violations", subsection_heading_style))
+        compliance_violations = data.get("compliance_violations") or []
+        if compliance_violations:
+            cv_table_data = [
+                [
+                    Paragraph("<b>#</b>", finding_num_style),
+                    Paragraph("<b>Policy / Standard</b>", finding_num_style),
+                    Paragraph("<b>Status</b>", finding_num_style),
+                    Paragraph("<b>Violation Details & Finding</b>", finding_num_style),
+                ]
+            ]
+            for idx, v in enumerate(compliance_violations, 1):
+                rule_name = v.get("rule", "Standard Compliance Rule") if isinstance(v, dict) else "Standard Compliance Rule"
+                v_detail = v.get("detail", str(v)) if isinstance(v, dict) else str(v)
+                cv_table_data.append([
+                    Paragraph(f"C.{idx}", body_style),
+                    Paragraph(f"<b>{rule_name}</b>", body_style),
+                    Paragraph(f"<font color='{self.color_high.hexval()}'><b>NON-COMPLIANT</b></font>", body_style),
+                    Paragraph(v_detail, body_style),
+                ])
+            cv_table = Table(cv_table_data, colWidths=[32, 140, 90, 270])
+            cv_table.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), self.bg_light),
+                ("BOX", (0, 0), (-1, -1), 0.5, self.border_gray),
+                ("INNERGRID", (0, 0), (-1, -1), 0.5, self.border_gray),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+            ]))
+            story.append(KeepTogether([cv_table, Spacer(1, 4)]))
+        else:
+            story.append(Paragraph("No compliance policy violations detected. Document provisions align with standard baseline policies.", body_style))
         story.append(Spacer(1, 6))
 
         # ---------------------------------------------------------------------

@@ -248,7 +248,7 @@ def test_upload_oversized_file():
 
     # Verify rejection
     assert response.status_code == 400
-    assert "exceeds maximum limit of 10MB" in response.json()["detail"]
+    assert "exceeds maximum allowed limit of 10MB" in response.json()["detail"] or "exceeds maximum limit of 10MB" in response.json()["detail"]
 
     # Verify no DB records were created
     db = TestingSessionLocal()
@@ -378,6 +378,18 @@ def test_get_document():
     assert data["analysis"]["clauses"][0]["type"] == "Governing Law & Jurisdiction"
     assert len(data["analysis"]["citations"]) == 1
     assert data["analysis"]["citations"][0]["source"] == "California Civil Code Section 1646"
+
+    # Simulate client polling (multiple GET requests)
+    for _ in range(5):
+        poll_res = client.get(f"/api/v1/documents/{doc_id}", headers={"Authorization": "Bearer test-token"})
+        assert poll_res.status_code == 200
+
+    # Verify no redundant audit log entries are generated during GET polling
+    db_verify = TestingSessionLocal()
+    audit_count = db_verify.query(AuditLog).filter(AuditLog.document_id == uuid.UUID(doc_id)).count()
+    db_verify.close()
+    assert audit_count == 0
+
 
 
 def test_get_report():

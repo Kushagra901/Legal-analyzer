@@ -127,7 +127,7 @@ def get_document_analysis(db: Session, document_id: str) -> dict[str, Any]:
         return {"error": "Document not found"}
 
     clauses = db.query(Clause).filter(Clause.document_id == document_id).all()
-    flags = db.query(RiskFlag).filter(RiskFlag.document_id == document_id).all()
+    flags = db.query(RiskFlag).join(Clause).filter(Clause.document_id == document_id).all()
     compliance = db.query(ComplianceCheck).filter(ComplianceCheck.document_id == document_id).all()
 
     return {
@@ -135,22 +135,22 @@ def get_document_analysis(db: Session, document_id: str) -> dict[str, Any]:
         "filename": doc.filename,
         "safety_score": getattr(doc, 'safety_score', None),
         "risk_level": getattr(doc, 'risk_level', None),
-        "clauses": [{"id": str(c.id), "clause_type": c.clause_type, "text": c.text} for c in clauses],
-        "risk_flags": [{"id": str(f.id), "description": f.description, "severity": f.severity} for f in flags],
+        "clauses": [{"id": str(c.id), "clause_type": c.clause_type, "text": getattr(c, "clause_text", getattr(c, "text", ""))} for c in clauses],
+        "risk_flags": [{"id": str(f.id), "description": getattr(f, "explanation", getattr(f, "description", "")), "severity": f.severity} for f in flags],
         "compliance_results": [{"rule_set": c.rule_set, "status": c.status} for c in compliance]
     }
 
 
 def search_clauses(db: Session, query: str, severity_filter: str = None, limit: int = 10) -> dict[str, Any]:
     """Search clauses by text content."""
-    q = db.query(Clause).filter(Clause.text.ilike(f"%{query}%"))
+    q = db.query(Clause).filter(Clause.clause_text.ilike(f"%{query}%"))
     if severity_filter:
         # Assuming Clause has severity or we join with RiskFlag
         pass
     clauses = q.limit(limit).all()
     return {
         "results": [
-            {"id": str(c.id), "document_id": str(c.document_id), "text": c.text}
+            {"id": str(c.id), "document_id": str(c.document_id), "text": getattr(c, "clause_text", getattr(c, "text", ""))}
             for c in clauses
         ]
     }

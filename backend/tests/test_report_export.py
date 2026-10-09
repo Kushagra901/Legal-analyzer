@@ -374,12 +374,14 @@ def test_download_report_endpoints(mock_user, sample_nda_report_data):
     assert pdf_res.status_code == 200
     assert pdf_res.headers["content-type"] == "application/pdf"
     assert pdf_res.content.startswith(b"%PDF")
+    assert pdf_res.headers["content-disposition"] == f'attachment; filename="Legal_Review_{str(doc_uuid)}.pdf"'
 
     # Test DOCX download
     docx_res = client.get(f"/api/v1/reports/{str(doc_uuid)}/download?format=docx")
     assert docx_res.status_code == 200
     assert "wordprocessingml" in docx_res.headers["content-type"]
     assert docx_res.content.startswith(b"PK\x03\x04")
+    assert docx_res.headers["content-disposition"] == f'attachment; filename="Legal_Review_{str(doc_uuid)}.docx"'
 
     app.dependency_overrides.clear()
 
@@ -433,11 +435,14 @@ def test_document_run_report_endpoint(mock_user, sample_nda_report_data):
     assert res_pdf.status_code == 200
     assert res_pdf.json()["status"] == "report_generated"
     assert "report_url" in res_pdf.json()
+    assert "review_memorandum.pdf" in res_pdf.json()["report_url"] or "/download" in res_pdf.json()["report_url"]
 
     # Test run_report with format=docx
     res_docx = client.post(f"/api/v1/documents/{str(doc_uuid)}/report?format=docx")
     assert res_docx.status_code == 200
     assert res_docx.json()["status"] == "report_generated"
     assert "report_url" in res_docx.json()
+    assert "review_memorandum.docx" in res_docx.json()["report_url"] or "/download" in res_docx.json()["report_url"]
 
     app.dependency_overrides.clear()
+

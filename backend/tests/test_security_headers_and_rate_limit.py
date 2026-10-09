@@ -32,3 +32,41 @@ def test_auth_rate_limiting():
         responses.append(res.status_code)
 
     assert 429 in responses
+
+
+def test_cors_preflight_allowed():
+    """
+    Ensure preflight OPTIONS with allowed origin, method, and headers succeeds with strict CORS headers.
+    """
+    from app.core.config import settings
+
+    response = client.options(
+        "/health",
+        headers={
+            "Origin": settings.FRONTEND_URL,
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "Authorization, Content-Type, X-Request-ID, X-Internal-Token",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers.get("access-control-allow-origin") == settings.FRONTEND_URL
+    assert response.headers.get("access-control-allow-credentials") == "true"
+    assert response.headers.get("access-control-max-age") == "600"
+    allow_methods = response.headers.get("access-control-allow-methods", "")
+    for m in ["GET", "POST", "PUT", "DELETE", "OPTIONS"]:
+        assert m in allow_methods
+
+
+def test_cors_preflight_disallowed_origin():
+    """
+    Ensure requests from untrusted origins do not receive allow-origin header.
+    """
+    response = client.options(
+        "/health",
+        headers={
+            "Origin": "https://malicious-site.example.com",
+            "Access-Control-Request-Method": "POST",
+        },
+    )
+    assert response.headers.get("access-control-allow-origin") is None
+

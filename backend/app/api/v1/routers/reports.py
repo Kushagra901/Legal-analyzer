@@ -2,17 +2,18 @@
 Reports router.
 Handles retrieval, generation, storage, and export requests for legal memorandum reports in PDF and DOCX formats.
 """
-import json
+import io
 import logging
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_accessible_document, get_current_user
 from app.core.database import get_db
-from app.models import AuditLog, Clause, ComplianceCheck, LegalReference, Report, RiskFlag, User
+from app.models import AuditLog, Report, User
 from app.models.schemas import CitationResponse, ClauseResponse, ReportResponse
 from app.services.report_generator_service import ReportGeneratorService
 from app.services.storage_service import StorageService
@@ -25,83 +26,8 @@ def assemble_report_data(doc: Any, db: Session) -> dict[str, Any]:
     """
     Assemble the complete structured findings for a document into a report payload dictionary.
     """
-    # Load citations
-    citations_db = db.query(LegalReference).filter(LegalReference.document_id == doc.id).all()
-    citations = [
-        {"source": cit.source, "citation": cit.citation}
-        for cit in citations_db
-    ]
+    return ReportGeneratorService.assemble_report_data(doc, db)
 
-    # Load clauses and risk flags
-    clauses_db = db.query(Clause).filter(Clause.document_id == doc.id).all()
-    clauses = []
-    risk_flags = []
-    recommendations = []
-
-    for c_db in clauses_db:
-        flags = db.query(RiskFlag).filter(RiskFlag.clause_id == c_db.id).all()
-        severity = flags[0].severity if flags else "LOW"
-        explanation = flags[0].explanation if flags else ""
-
-        if severity in ("MEDIUM", "HIGH") and explanation:
-            recommendations.append(f"Review the {c_db.clause_type} clause: {explanation}")
-            risk_flags.append({
-                "clause_type": c_db.clause_type,
-                "severity": severity,
-                "explanation": explanation
-            })
-
-        clauses.append({
-            "id": str(c_db.id),
-            "clause_type": c_db.clause_type,
-            "type": c_db.clause_type,
-            "clause_text": c_db.clause_text,
-            "text": c_db.clause_text,
-            "severity": severity,
-            "risk_level": severity,
-            "explanation": explanation or f"Standard {c_db.clause_type} clause.",
-            "category": c_db.category or "General & Boilerplate",
-            "confidence_score": c_db.confidence_score if c_db.confidence_score is not None else 0.95
-        })
-
-    # Load compliance violations
-    violations = []
-    compliance_db = db.query(ComplianceCheck).filter(ComplianceCheck.document_id == doc.id).first()
-    if compliance_db:
-        try:
-            violations = json.loads(compliance_db.result)
-            for v in violations:
-                recommendations.append(v)
-                risk_flags.append({
-                    "clause_type": "Compliance Policy Audit",
-                    "severity": "HIGH",
-                    "explanation": str(v)
-                })
-        except Exception:
-            pass
-
-    if not recommendations:
-        recommendations.append("Confirm all provisions align with standard organizational templates and practices.")
-        recommendations.append("Ensure the designated governing jurisdiction is acceptable for your operations before formal execution.")
-
-    return {
-        "document_id": str(doc.id),
-        "filename": doc.filename,
-        "uploaded_at": doc.uploaded_at.isoformat() if doc.uploaded_at else None,
-        "safety_score": doc.safety_score if doc.safety_score is not None else 100,
-        "risk_level": doc.risk_level if doc.risk_level is not None else "LOW",
-        "summary": doc.summary or "Analysis complete.",
-        "document_overview": doc.document_overview or doc.summary or "Document analysis completed.",
-        "parties": doc.parties or [],
-        "key_dates": doc.key_dates or {},
-        "missing_sections": doc.missing_sections or [],
-        "plain_english_summary": doc.plain_english_summary or doc.summary or "Summary of contractual provisions.",
-        "clauses": clauses,
-        "risk_flags": risk_flags,
-        "recommendations": recommendations,
-        "citations": citations,
-        "compliance_violations": violations
-    }
 
 
 @router.get("/{document_id}", response_model=ReportResponse)
@@ -215,7 +141,7 @@ def export_report(
 
     # 3. Upload to Supabase Storage
     storage_service = StorageService()
-    storage_path = f"reports/{doc.id}/report.{ext}"
+    storage_path = f"reports/{doc.id}/review_memorandum.{ext}"
     try:
         storage_service.upload_file(
             file_data=file_bytes,
@@ -303,9 +229,9 @@ def download_report_file(
     format: str = Query("pdf", pattern="^(pdf|docx)$"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
-) -> Response:
+) -> StreamingResponse:
     """
-    Directly render and download the report document binary in PDF or DOCX format.
+    Directly render and stream the report document binary in PDF or DOCX format.
     """
     doc = get_accessible_document(db, document_id, current_user)
     if not doc:
@@ -317,21 +243,20 @@ def download_report_file(
     report_data = assemble_report_data(doc, db)
     generator = ReportGeneratorService()
 
-    base_name = doc.filename.rsplit(".", 1)[0] if "." in doc.filename else doc.filename
-    clean_filename = f"{base_name}_legal_report.{format}"
-
     if format == "docx":
         file_bytes = generator.generate_docx(report_data)
         media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        filename = f"Legal_Review_{document_id}.docx"
     else:
         file_bytes = generator.generate_pdf(report_data)
         media_type = "application/pdf"
+        filename = f"Legal_Review_{document_id}.pdf"
 
-    return Response(
-        content=file_bytes,
+    return StreamingResponse(
+        io.BytesIO(file_bytes),
         media_type=media_type,
         headers={
-            "Content-Disposition": f'attachment; filename="{clean_filename}"',
+            "Content-Disposition": f'attachment; filename="{filename}"',
             "Cache-Control": "no-cache"
         }
     )

@@ -6,6 +6,9 @@ venv/
 *.egg-info/
 .pytest_cache/
 .ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
 legal.db
 
 # --- Node / frontend ---

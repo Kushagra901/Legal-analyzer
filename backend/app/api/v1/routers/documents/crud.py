@@ -3,6 +3,7 @@ CRUD router for documents.
 Handles document upload, retrieval, listing, status checking, and deletion.
 """
 
+import io
 import json
 import logging
 import uuid
@@ -67,6 +68,7 @@ ALLOWED_MIME_TYPES = {
 }
 
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+CHUNK_SIZE = 64 * 1024  # 64KB
 
 
 def ensure_test_user_exists(db: Session) -> uuid.UUID:
@@ -187,14 +189,21 @@ async def upload_document(
                 detail=f"MIME type '{file.content_type}' is not permitted."
             )
 
-        # 2. Validate file size
-        content = await file.read()
+        # 2. Validate file size with streaming chunks (prevent memory exhaustion)
+        byte_buffer = io.BytesIO()
+        total_bytes = 0
+
+        while chunk := await file.read(CHUNK_SIZE):
+            total_bytes += len(chunk)
+            if total_bytes > MAX_FILE_SIZE:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="File size exceeds maximum allowed limit of 10MB."
+                )
+            byte_buffer.write(chunk)
+
+        content = byte_buffer.getvalue()
         file_size = len(content)
-        if file_size > MAX_FILE_SIZE:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="File size exceeds maximum limit of 10MB."
-            )
 
         # Magic-byte signature validation
         MAGIC_SIGNATURES = {
@@ -389,18 +398,6 @@ def get_document(
     Retrieve details for an analyzed document.
     """
     doc = get_accessible_document(db, document_id, current_user)
-
-    # Write audit log
-    try:
-        audit_log = AuditLog(
-            document_id=doc.id,
-            action=f"Document viewed: {doc.filename}"
-        )
-        db.add(audit_log)
-        db.commit()
-    except Exception as e:
-        db.rollback()
-        logger.error("Error writing view audit log: %s", e, exc_info=True)
 
     # Load real extracted text from database
     extracted_text_obj = db.query(ExtractedText).filter(ExtractedText.document_id == doc.id).first()
