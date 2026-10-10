@@ -3,6 +3,8 @@ Documents router package.
 Consolidates CRUD, analysis, clause review, and document chat sub-routers into a master router.
 """
 
+import logging
+
 from fastapi import APIRouter
 
 from app.api.v1.routers.documents.analysis import (
@@ -22,6 +24,8 @@ from app.api.v1.routers.documents.crud import (
 from app.api.v1.routers.documents.review import router as review_router
 from app.services.llm_service import LLMService
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 
 router.include_router(crud_router)
@@ -30,6 +34,7 @@ router.include_router(review_router)
 router.include_router(chat_router)
 
 __all__ = [
+    "logger",
     "router",
     "crud_router",
     "analysis_router",
@@ -40,4 +45,5 @@ __all__ = [
     "run_report",
     "LLMService",
 ]
+
 

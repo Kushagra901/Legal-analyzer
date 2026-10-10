@@ -54,7 +54,8 @@ class OCRService:
             try:
                 with open(file_source, "rb") as f:
                     header = f.read(16)
-            except Exception:
+            except Exception as e:
+                logger.warning("Failed to read header from %s: %s", file_source, e)
                 header = b""
         else:
             header = file_source[:16] if file_source else b""
@@ -82,8 +83,8 @@ class OCRService:
             decoded = header.decode("utf-8", errors="ignore").strip().lower()
             if decoded.startswith("<html") or decoded.startswith("<!doctype html") or decoded.startswith("<head"):
                 return "html"
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("HTML header decode check warning: %s", e)
 
         # 3. Extension fallback
         if ext in ("pdf", "docx", "doc", "rtf", "html", "htm", "txt", "png", "jpg", "jpeg", "tiff", "tif"):
@@ -102,8 +103,10 @@ class OCRService:
                 try:
                     file_source.decode("latin-1")
                     return "txt"
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning("Fallback encoding decode warning: %s", e)
+            except Exception as e:
+                logger.warning("Text decode check warning: %s", e)
 
         return "unknown"
 
@@ -257,6 +260,7 @@ class OCRService:
             tuple[str, str, float]: (extracted_text, method_used, parsing_confidence)
         """
         file_format = self.detect_format(file_source)
+        logger.info("Processing document with detected format: %s", file_format)
 
         if file_format == "pdf":
             native_text = self.extract_text_natively(file_source)
@@ -312,5 +316,6 @@ class OCRService:
         """
         Deprecated. Legacy compatibility helper.
         """
+        logger.info("Calling legacy extract_text for: %s", file_path)
         text_content, _, _ = self.process_document(file_path)
         return text_content

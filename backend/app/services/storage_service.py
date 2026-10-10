@@ -78,6 +78,7 @@ class StorageService:
             file=file_data,
             file_options=file_options
         )
+        logger.info("Successfully uploaded file to storage: %s", file_path)
 
         return f"{self.bucket_name}/{file_path}"
 
@@ -89,5 +90,7 @@ class StorageService:
             return f"/storage/v1/object/public/{self.bucket_name}/{file_path}"
         try:
             return self.client.storage.from_(self.bucket_name).get_public_url(file_path)
-        except Exception:
+        except Exception as e:
+            logger.warning("Caught warning retrieving public URL for %s: %s", file_path, e)
             return f"/storage/v1/object/public/{self.bucket_name}/{file_path}"
+

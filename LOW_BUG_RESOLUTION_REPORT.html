@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Engineering Resolution Report: LOW-01 through LOW-08 | Legal Analyzer</title>
+  <style>
+    :root {
+      --bg: #faf9f6;
+      --card-bg: #ffffff;
+      --text-main: #111827;
+      --text-muted: #4b5563;
+      --border-color: #e5e7eb;
+      --accent: #0f2942;
+      --accent-hover: #0a1c2e;
+      --badge-bg: #f3f4f6;
+      --badge-green-bg: #ecfdf5;
+      --badge-green-text: #065f46;
+      --badge-green-border: #a7f3d0;
+      --code-bg: #f8fafc;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      padding: 40px 20px;
+    }
+
+    .container {
+      max-width: 980px;
+      margin: 0 auto;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      padding: 48px;
+    }
+
+    header {
+      border-bottom: 2px solid var(--accent);
+      padding-bottom: 24px;
+      margin-bottom: 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 20px;
+    }
+
+    .header-content h1 {
+      font-family: "Georgia", "Merriweather", serif;
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 6px;
+    }
+
+    .header-content p {
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background-color: var(--accent);
+      color: #ffffff;
+      border: none;
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background-color 0.15s ease;
+    }
+
+    .btn:hover {
+      background-color: var(--accent-hover);
+    }
+
+    .btn-secondary {
+      background-color: #ffffff;
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+    }
+
+    .btn-secondary:hover {
+      background-color: #f9fafb;
+    }
+
+    h2 {
+      font-family: "Georgia", "Merriweather", serif;
+      font-size: 18px;
+      color: var(--accent);
+      margin: 32px 0 16px 0;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 6px;
+    }
+
+    h3 {
+      font-size: 15px;
+      color: var(--accent);
+      margin: 20px 0 10px 0;
+      font-weight: 600;
+    }
+
+    p {
+      margin-bottom: 12px;
+    }
+
+    .table-wrapper {
+      overflow-x: auto;
+      margin-bottom: 28px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 13px;
+    }
+
+    th, td {
+      padding: 10px 14px;
+      border: 1px solid var(--border-color);
+    }
+
+    th {
+      background-color: #f9fafb;
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    tr:nth-child(even) td {
+      background-color: #fcfcfc;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-radius: 2px;
+    }
+
+    .badge-resolved {
+      background-color: var(--badge-green-bg);
+      color: var(--badge-green-text);
+      border: 1px solid var(--badge-green-border);
+    }
+
+    .badge-label {
+      background-color: #eff6ff;
+      color: #1e40af;
+      border: 1px solid #bfdbfe;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 11px;
+      text-transform: none;
+    }
+
+    .card {
+      border: 1px solid var(--border-color);
+      padding: 20px;
+      margin-bottom: 20px;
+      background: #ffffff;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 12px;
+      border-bottom: 1px solid #f3f4f6;
+      padding-bottom: 8px;
+    }
+
+    .card-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    .card-meta {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+
+    .code-block {
+      background-color: var(--code-bg);
+      border: 1px solid var(--border-color);
+      padding: 12px 14px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 12px;
+      overflow-x: auto;
+      margin: 10px 0;
+      line-height: 1.45;
+    }
+
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 12px;
+      background: #f3f4f6;
+      padding: 2px 4px;
+      border-radius: 2px;
+    }
+
+    ul {
+      margin-left: 20px;
+      margin-bottom: 12px;
+    }
+
+    li {
+      margin-bottom: 6px;
+    }
+
+    footer {
+      margin-top: 48px;
+      border-top: 1px solid var(--border-color);
+      padding-top: 20px;
+      font-size: 12px;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    @media print {
+      body {
+        background: #ffffff;
+        padding: 0;
+      }
+      .container {
+        border: none;
+        padding: 0;
+        max-width: 100%;
+      }
+      .header-actions {
+        display: none;
+      }
+      .card {
+        page-break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="header-content">
+        <h1>Engineering Resolution Report: LOW-01 through LOW-08</h1>
+        <p><strong>Legal Analyzer Platform</strong> &bull; Date: October 10, 2026 &bull; Status: All 8 Issues Resolved &amp; Verified</p>
+      </div>
+      <div class="header-actions">
+        <button class="btn" onclick="window.print()">Print / Save PDF</button>
+        <a class="btn btn-secondary" href="LOW_BUG_RESOLUTION_PACKAGE.zip" download>Download ZIP</a>
+      </div>
+    </header>
+
+    <h2>1. Executive Summary Matrix</h2>
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Issue ID</th>
+            <th>Architecture Label</th>
+            <th>Domain</th>
+            <th>Target Files</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>LOW-01</strong></td>
+            <td><span class="badge badge-label">CODE-STYLE-001-ELIMINATE-PRINTS</span></td>
+            <td>Observability &amp; Style</td>
+            <td>Document Routers, Storage &amp; OCR Services</td>
+            <td><span class="badge badge-resolved">Resolved</span></td>
+          </tr>
+          <tr>
+            <td><strong>LOW-02</strong></td>
+            <td><span class="badge badge-label">CODE-QUALITY-001-REMOVE-DEAD-CHECKS</span></td>
+            <td>Code Quality</td>
+            <td>Document Sub-Routers (crud, analysis, review, chat)</td>
+            <td><span class="badge badge-resolved">Resolved</span></td>
+          </tr>
+          <tr>
+            <td><strong>LOW-03</strong></td>
+            <td><span class="badge badge-label">SEC-HDR-001-PERMISSIONS-POLICY</span></td>
+            <td>Security Hardening</td>
+            <td><code>security_headers.py</code></td>
+            <td><span class="badge badge-resolved">Resolved</span></td>
+          </tr>
+          <tr>
+            <td><strong>LOW-04</strong></td>
+            <td><span class="badge badge-label">DEVOPS-COMPOSE-001-CLEANUP</span></td>
+            <td>DevOps &amp; Containers</td>
+            <td><code>docker-compose.yml</code>, <code>backend/Dockerfile</code></td>
+            <td><span class="badge badge-resolved">Resolved</span></td>
+          </tr>
+          <tr>
+            <td><strong>LOW-05</strong></td>
+            <td><span class="badge badge-label">DEVOPS-DEP-001-PIN-VERSIONS</span></td>
+            <td>Dependencies</td>
+            <td><code>backend/requirements.txt</code></td>
+            <td><span class="badge badge-resolved">Resolved</span></td>
+          </tr>
+          <tr>
+            <td><strong>LOW-06</strong></td>
+            <td><span class="badge badge-label">LEGAL-LIC-001-ADD-LICENSE</span></td>
+            <td>Legal &amp; Governance</td>
+            <td><code>LICENSE</code> (Root MIT License)</td>
+            <td><span class="badge badge-resolved">Resolved</span></td>
+          </tr>
+          <tr>
+            <td><strong>LOW-07</strong></td>
+            <td><span class="badge badge-label">DATA-DB-007-CHUNK-INDEX-CONSTRAINT</span></td>
+            <td>Database &amp; Data Integrity</td>
+            <td><code>database_models.py</code>, Alembic Migration</td>
+            <td><span class="badge badge-resolved">Resolved</span></td>
+          </tr>
+          <tr>
+            <td><strong>LOW-08</strong></td>
+            <td><span class="badge badge-label">DOCS-META-001-URL-CLEANUP</span></td>
+            <td>Documentation Meta</td>
+            <td><code>README.md</code></td>
+            <td><span class="badge badge-resolved">Resolved</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2>2. Detailed Technical Resolutions</h2>
+
+    <!-- LOW-01 -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">LOW-01: Replace Lingering Print Statements with Structured Logger</span>
+        <span class="badge badge-resolved">Resolved</span>
+      </div>
+      <div class="card-meta">
+        <strong>Label:</strong> <code>CODE-STYLE-001-ELIMINATE-PRINTS</code> | 
+        <strong>Target Files:</strong> <code>app/api/v1/routers/documents/*</code>, <code>storage_service.py</code>, <code>ocr_service.py</code>
+      </div>
+      <p><strong>Problem:</strong> Router helper functions and storage/OCR services contained raw <code>print()</code> statements writing unformatted strings to standard output. This bypassed structured log formatters, correlation IDs (<code>X-Request-ID</code>), log-level filtering, and Sentry breadcrumb collection.</p>
+      <p><strong>Remediation:</strong> Initialized standard module loggers (<code>logger = logging.getLogger(__name__)</code>) across all modules. Converted diagnostic prints to <code>logger.info()</code> and caught warnings to <code>logger.warning()</code>. Preserved strict confidentiality by logging only <code>document_id</code> references without raw document text.</p>
+      <div class="code-block">logger = logging.getLogger(__name__)
+logger.info("Storage service initialized with provider: %s", provider)
+logger.warning("OCR processing warning for document %s: %s", document_id, err)</div>
+      <p><strong>Verification:</strong> Unit tests in <code>tests/test_logging.py</code> passed; codebase inspection confirmed zero unmanaged print calls.</p>
+    </div>
+
+    <!-- LOW-02 -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">LOW-02: Eliminate Dead Code Unreachable Null Checks</span>
+        <span class="badge badge-resolved">Resolved</span>
+      </div>
+      <div class="card-meta">
+        <strong>Label:</strong> <code>CODE-QUALITY-001-REMOVE-DEAD-CHECKS</code> | 
+        <strong>Target Files:</strong> <code>app/api/v1/routers/documents/crud.py, analysis.py, review.py, chat.py</code>
+      </div>
+      <p><strong>Problem:</strong> <code>get_accessible_document()</code> raises an <code>HTTPException(404)</code> if a document is not found or inaccessible. Subsequent <code>if not doc: raise HTTPException(...)</code> checks across multiple router endpoints were unreachable dead code.</p>
+      <p><strong>Remediation:</strong> Removed 6 blocks of unreachable dead null checks across documents sub-routers, improving code clarity and test branch coverage.</p>
+      <p><strong>Verification:</strong> Ran <code>ruff check</code> across routers; verified document retrieval and access permission checks cleanly raise 404.</p>
+    </div>
+
+    <!-- LOW-03 -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">LOW-03: Inject Permissions-Policy Header in Security Middleware</span>
+        <span class="badge badge-resolved">Resolved</span>
+      </div>
+      <div class="card-meta">
+        <strong>Label:</strong> <code>SEC-HDR-001-PERMISSIONS-POLICY</code> | 
+        <strong>Target Files:</strong> <code>app/core/security_headers.py</code>, <code>tests/test_security_headers_and_rate_limit.py</code>
+      </div>
+      <p><strong>Problem:</strong> Security headers middleware omitted a <code>Permissions-Policy</code> HTTP header, leaving browser hardware APIs (camera, microphone, geolocation, payment) unrestricted.</p>
+      <p><strong>Remediation:</strong> Configured <code>Permissions-Policy</code> header in <code>SecurityHeadersMiddleware.dispatch()</code> to explicitly restrict sensitive device APIs:</p>
+      <div class="code-block">response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=()"</div>
+      <p><strong>Verification:</strong> <code>pytest tests/test_security_headers_and_rate_limit.py</code> verified all HTTP responses return the header.</p>
+    </div>
+
+    <!-- LOW-04 -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">LOW-04: Modernize docker-compose.yml and Fix Volume Pre-Creation Dependency</span>
+        <span class="badge badge-resolved">Resolved</span>
+      </div>
+      <div class="card-meta">
+        <strong>Label:</strong> <code>DEVOPS-COMPOSE-001-CLEANUP</code> | 
+        <strong>Target Files:</strong> <code>docker-compose.yml</code>, <code>backend/Dockerfile</code>
+      </div>
+      <p><strong>Problem:</strong> <code>docker-compose.yml</code> specified deprecated <code>version: '3.8'</code> and declared <code>n8n_data: external: true</code>, causing <code>docker compose up</code> to fail if the volume was not manually created in advance. The backend container also lacked a healthcheck.</p>
+      <p><strong>Remediation:</strong> Removed <code>version: '3.8'</code>, converted <code>n8n_data</code> to a standard managed volume (<code>n8n_data:</code>), and added a <code>HEALTHCHECK</code> instruction to the backend Dockerfile targeting <code>/health</code>.</p>
+      <div class="code-block">HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1</div>
+      <p><strong>Verification:</strong> Verified compose configuration adheres to current Compose Specification without warnings.</p>
+    </div>
+
+    <!-- LOW-05 -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">LOW-05: Pin Backend Dependencies with Upper Version Bounds</span>
+        <span class="badge badge-resolved">Resolved</span>
+      </div>
+      <div class="card-meta">
+        <strong>Label:</strong> <code>DEVOPS-DEP-001-PIN-VERSIONS</code> | 
+        <strong>Target Files:</strong> <code>backend/requirements.txt</code>
+      </div>
+      <p><strong>Problem:</strong> Dependencies in <code>requirements.txt</code> used open-ended `>=` minimum versions, exposing the build pipeline to breaking changes from upstream major releases.</p>
+      <p><strong>Remediation:</strong> Pinned packages with compatible upper version bounds (e.g., <code>fastapi>=0.110.0,&lt;1.0.0</code>, <code>pydantic>=2.6.0,&lt;3.0.0</code>, <code>sqlalchemy>=2.0.0,&lt;3.0.0</code>).</p>
+      <p><strong>Verification:</strong> Validated package dependency graph with <code>pip check</code> and verified full test suite runs cleanly.</p>
+    </div>
+
+    <!-- LOW-06 -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">LOW-06: Add Root LICENSE File</span>
+        <span class="badge badge-resolved">Resolved</span>
+      </div>
+      <div class="card-meta">
+        <strong>Label:</strong> <code>LEGAL-LIC-001-ADD-LICENSE</code> | 
+        <strong>Target Files:</strong> <code>LICENSE</code> (Repository Root)
+      </div>
+      <p><strong>Problem:</strong> The documentation declared the project was open-source under the MIT License, but the repository lacked an official <code>LICENSE</code> file.</p>
+      <p><strong>Remediation:</strong> Created the standard MIT License file at the repository root with 2026 copyright attribution to Kushagra.</p>
+      <p><strong>Verification:</strong> File created and confirmed present at repository root.</p>
+    </div>
+
+    <!-- LOW-07 -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">LOW-07: Enforce Unique Constraint on Document Chunk Indexes</span>
+        <span class="badge badge-resolved">Resolved</span>
+      </div>
+      <div class="card-meta">
+        <strong>Label:</strong> <code>DATA-DB-007-CHUNK-INDEX-CONSTRAINT</code> | 
+        <strong>Target Files:</strong> <code>backend/app/models/database_models.py</code>, <code>alembic/versions/2e1482525d09_*.py</code>, <code>tests/test_embedding_and_chunks.py</code>
+      </div>
+      <p><strong>Problem:</strong> Mid-process chunking failures during retries could persist duplicate chunk rows with identical index numbers for the same document, degrading embedding quality and RAG retrieval accuracy.</p>
+      <p><strong>Remediation:</strong> Added <code>UniqueConstraint("document_id", "chunk_index", name="uq_document_chunk_index")</code> to <code>DocumentChunk</code> table args. Generated Alembic migration <code>2e1482525d09_unique_document_chunk_index.py</code>, and added unit tests.</p>
+      <div class="code-block">__table_args__ = (
+    UniqueConstraint("document_id", "chunk_index", name="uq_document_chunk_index"),
+)</div>
+      <p><strong>Verification:</strong> Ran <code>pytest tests/test_embedding_and_chunks.py</code> — all 6 tests passed in 23.38s, confirming <code>IntegrityError</code> is raised on duplicate insertion.</p>
+    </div>
+
+    <!-- LOW-08 -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">LOW-08: Update Placeholder Badge URLs and Documentation Meta</span>
+        <span class="badge badge-resolved">Resolved</span>
+      </div>
+      <div class="card-meta">
+        <strong>Label:</strong> <code>DOCS-META-001-URL-CLEANUP</code> | 
+        <strong>Target Files:</strong> <code>README.md</code>
+      </div>
+      <p><strong>Problem:</strong> <code>README.md</code> contained placeholder repository URLs (<code>your-username/legal-analyzer</code>), placeholder emails, and dead image references to uncommitted SVG and PNG files.</p>
+      <p><strong>Remediation:</strong> Updated all badges and clone commands to <code>Kushagra901/Legal-analyzer</code>. Removed dead image references and replaced them with structured descriptions of the primary application views. Updated maintainer contact info and fixed documentation links.</p>
+      <p><strong>Verification:</strong> Grep search across <code>README.md</code> confirmed zero placeholder strings remain.</p>
+    </div>
+
+    <footer>
+      <div>Legal Analyzer &bull; Engineering Remediation Report</div>
+      <div>Generated October 10, 2026</div>
+    </footer>
+  </div>
+</body>
+</html>

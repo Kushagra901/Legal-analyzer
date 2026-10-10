@@ -61,8 +61,6 @@ def run_ocr(
 ) -> AnalysisStatusResponse:
     """Run OCR extraction status verification."""
     doc = get_accessible_document(db, document_id, current_user)
-    if not doc:
-        raise HTTPException(status_code=404, detail="Document not found.")
     return AnalysisStatusResponse(
         status="ocr_completed",
         document_id=document_id,
@@ -82,8 +80,6 @@ def run_analysis(
 ) -> AnalysisStatusResponse:
     """Run baseline single-pass contract analysis."""
     doc = get_accessible_document(db, document_id, current_user)
-    if not doc:
-        raise HTTPException(status_code=404, detail="Document not found.")
 
     extracted_text_obj = db.query(ExtractedText).filter(ExtractedText.document_id == doc.id).first()
     extracted_text = extracted_text_obj.content if extracted_text_obj else "Sample contract text."
@@ -155,8 +151,6 @@ def run_agent_analysis(
     Agent 4 (Risk Analysis) & Agent 5 (Compliance Audit) -> Agent 6 (Summarization).
     """
     doc = get_accessible_document(db, document_id, current_user)
-    if not doc:
-        raise HTTPException(status_code=404, detail="Document not found.")
 
     extracted_text_obj = db.query(ExtractedText).filter(ExtractedText.document_id == doc.id).first()
     extracted_text = extracted_text_obj.content if extracted_text_obj and extracted_text_obj.content else ""
@@ -379,8 +373,6 @@ def run_scoring(
 ) -> AnalysisStatusResponse:
     """Calculate and update overall document risk ratings."""
     doc = get_accessible_document(db, document_id, current_user)
-    if not doc:
-        raise HTTPException(status_code=404, detail="Document not found.")
 
     clauses = db.query(Clause).filter(Clause.document_id == doc.id).all()
     clause_list = []
@@ -421,8 +413,6 @@ def run_compliance(
     Callable by the n8n compliance agent via internal service token or authenticated users.
     """
     doc = get_accessible_document(db, document_id, current_user)
-    if not doc:
-        raise HTTPException(status_code=404, detail="Document not found.")
 
     extracted_text_obj = db.query(ExtractedText).filter(ExtractedText.document_id == doc.id).first()
     extracted_text = ""
@@ -492,8 +482,6 @@ def run_report(
 ) -> AnalysisStatusResponse:
     """Generate or update report record with real in-memory PDF/DOCX generation and storage persistence."""
     doc = get_accessible_document(db, document_id, current_user)
-    if not doc:
-        raise HTTPException(status_code=404, detail="Document not found.")
 
     report_data = ReportGeneratorService.assemble_report_data(doc, db)
     generator = ReportGeneratorService()
@@ -553,8 +541,6 @@ def run_audit(
 ) -> AnalysisStatusResponse:
     """Log an audit entry for a document."""
     doc = get_accessible_document(db, document_id, current_user)
-    if not doc:
-        raise HTTPException(status_code=404, detail="Document not found.")
 
     action_str = body.action if (body and body.action) else f"Workflow processing step completed for document: {doc.filename}"
 
@@ -713,11 +699,6 @@ def get_quick_summary(
     Runs independently of the full multi-step analysis pipeline to provide instant frontend feedback.
     """
     doc = get_accessible_document(db, document_id, current_user)
-    if not doc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Document not found or access denied."
-        )
 
     # Retrieve extracted text
     extracted_text_obj = db.query(ExtractedText).filter(ExtractedText.document_id == doc.id).first()

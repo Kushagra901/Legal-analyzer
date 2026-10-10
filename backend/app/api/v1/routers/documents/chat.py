@@ -3,6 +3,7 @@ Chat router for document Q&A.
 Handles vector similarity retrieval, grounded Gemini Q&A, and chat message history.
 """
 
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -28,7 +29,10 @@ from app.models.schemas import (
 from app.services.chat_service import ChatService
 from app.services.embedding_service import EmbeddingService
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
+
 
 
 @router.post("/{document_id}/chat", response_model=ChatResponse)
@@ -45,8 +49,6 @@ def chat_with_document(
     and grounded Gemini Q&A.
     """
     doc = get_accessible_document(db, document_id, current_user)
-    if not doc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
 
     question = body.question or body.query
     if not question or not question.strip():
@@ -124,6 +126,8 @@ def chat_with_document(
     )
     db.add(audit_log)
     db.commit()
+
+    logger.info("Executed vector chat query for document %s", doc.id)
 
     citations_resp = []
     if assistant_msg.citations:
