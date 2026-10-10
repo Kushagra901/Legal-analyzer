@@ -448,7 +448,8 @@ def get_document(
     if compliance_db:
         try:
             violations = json.loads(compliance_db.result)
-        except Exception:
+        except Exception as e:
+            logger.warning("Failed to parse compliance check JSON for document %s: %s", doc.id, e)
             violations = []
 
     for v in violations:

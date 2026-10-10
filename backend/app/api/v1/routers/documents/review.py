@@ -4,6 +4,7 @@ Handles persisting and retrieving attorney clause review decisions and notes.
 """
 
 import datetime
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -15,7 +16,10 @@ from app.core.limiter import limiter
 from app.models import AuditLog, Clause, ClauseReview, User
 from app.models.schemas import ClauseReviewCreate, ClauseReviewResponse
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
+
 
 
 @router.post("/{document_id}/clauses/{clause_id}/review", response_model=ClauseReviewResponse)
@@ -88,6 +92,13 @@ def review_clause(
     db.add(audit_log)
     db.commit()
     db.refresh(review_record)
+
+    logger.info(
+        "Recorded clause review for document %s, clause %s: decision=%s",
+        doc.id,
+        clause.id,
+        body.decision,
+    )
 
     return ClauseReviewResponse(
         id=str(review_record.id),

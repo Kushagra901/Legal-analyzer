@@ -23,6 +23,10 @@ def test_security_headers_present():
         response.headers.get("Referrer-Policy")
         == "strict-origin-when-cross-origin"
     )
+    assert (
+        response.headers.get("Permissions-Policy")
+        == "camera=(), microphone=(), geolocation=(), payment=()"
+    )
 
 
 def test_auth_rate_limiting():

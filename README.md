@@ -1,26 +1,17 @@
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./docs/branding/logo-dark.svg">
-    <img src="./docs/branding/logo-light.svg" alt="Legal Analyzer logo" width="280">
-  </picture>
-</p>
-
 # Legal Analyzer
 
 **AI-assisted first-pass review for contracts, NDAs, and legal documents — extraction, risk flagging, and reporting in minutes, not days.**
 
-![Build Status](https://img.shields.io/github/actions/workflow/status/your-username/legal-analyzer/ci.yml?branch=main)
+![Build Status](https://img.shields.io/github/actions/workflow/status/Kushagra901/Legal-analyzer/ci.yml?branch=main)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Release](https://img.shields.io/badge/release-v0.1.0--alpha-orange)
-![Repo Size](https://img.shields.io/github/repo-size/your-username/legal-analyzer)
+![Repo Size](https://img.shields.io/github/repo-size/Kushagra901/Legal-analyzer)
 ![Languages](https://img.shields.io/badge/stack-Python%20%7C%20TypeScript-informational)
-
-*Assumption: badge URLs use a placeholder path `your-username/legal-analyzer` — swap in your real GitHub path once the repo is live.*
 
 ## Table of Contents
 - [Overview](#overview)
 - [Key Features](#key-features)
-- [Demo / Screenshots](#demo--screenshots)
+- [Demo & Core Views](#demo--core-views)
 - [Quick Start](#quick-start-install--run)
 - [Detailed Usage](#detailed-usage)
 - [Configuration & Environment](#configuration--environment)
@@ -70,7 +61,7 @@ This is an active MVP, not a finished product — several pieces (real OCR, real
 - **Multi-database connectivity** — PostgreSQL (primary), Redis (cache/broker), SQL Server (optional), pgvector (vector store)
 
 
-## Demo / Screenshots
+## Demo & Core Views
 
 Run the stack locally, then open the dashboard and upload a sample file:
 ```bash
@@ -78,15 +69,10 @@ docker compose up --build
 # then visit http://localhost:3000 and upload a PDF from /test-documents
 ```
 
-> **Note:** screenshots below use a fake sample NDA (placeholder company/party names) — never commit a screenshot containing a real user's document, a real API key, or a real Supabase project URL. See [Security & Secrets](#security--secrets) for the full pre-commit check.
-
-| | |
-|---|---|
-| ![Dashboard view showing the document list with status and risk level per row](./docs/screenshots/dashboard.png) | ![Document view with source text and clickable clause highlights](./docs/screenshots/document-view.png) |
-| **Dashboard** — document list with status and risk level per row | **Document view** — split pane, source text with clickable clause highlights |
-
-![Printable memorandum-style report view](./docs/screenshots/report-view.png)
-**Report view** — printable memorandum layout
+The application provides three primary interactive views:
+- **Dashboard** (`/dashboard`): Central document management view showing document status, risk ratings, and quick actions.
+- **Document View** (`/documents/[id]`): Split-pane review interface with native extracted text, clickable clause risk highlights, and confidence badges.
+- **Report View** (`/reports/[id]`): Clean, printable memorandum layout featuring plain-English summaries, clause risk breakdown, and audit tracking.
 
 ## Quick Start (Install & Run)
 
@@ -94,8 +80,8 @@ docker compose up --build
 
 ### Unix / macOS
 ```bash
-git clone https://github.com/your-username/legal-analyzer.git
-cd legal-analyzer/backend
+git clone https://github.com/Kushagra901/Legal-analyzer.git
+cd Legal-analyzer/backend
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
@@ -109,8 +95,8 @@ npm run dev
 
 ### Windows (PowerShell)
 ```powershell
-git clone https://github.com/your-username/legal-analyzer.git
-cd legal-analyzer\backend
+git clone https://github.com/Kushagra901/Legal-analyzer.git
+cd Legal-analyzer\backend
 python -m venv .venv; .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 copy .env.example .env
@@ -372,7 +358,7 @@ jobs:
 
 ## Deployment
 
-*Assumption: this project targets Vercel + Render (both free-tier friendly) rather than Heroku/GCP/AWS, matching the stack already chosen in `docs/legal-analyzer-architecture.md`.*
+*Assumption: this project targets Vercel + Render (both free-tier friendly) rather than Heroku/GCP/AWS, matching the stack already chosen in `legal-analyzer-architecture.md`.*
 
 **Local Docker:**
 ```bash
@@ -444,9 +430,7 @@ Recommended production strategy: containerized backend + managed Postgres + secr
 
 ## Maintainers & Contact
 
-**Primary maintainer:** your-name (`your-email@example.com`). For urgent issues, open a GitHub Issue tagged `urgent` — response times aren't guaranteed on a solo/learning project.
-
-*Assumption: maintainer contact is a placeholder — replace with your real name and a monitored email or GitHub handle.*
+**Primary maintainer:** Kushagra ([@Kushagra901](https://github.com/Kushagra901)). For issues, feature requests, or inquiries, please open a [GitHub Issue](https://github.com/Kushagra901/Legal-analyzer/issues).
 
 ## License
 
@@ -458,8 +442,7 @@ Built with [Next.js](https://nextjs.org), [FastAPI](https://fastapi.tiangolo.com
 
 ## Appendix
 
-- Architecture & schema: [`docs/legal-analyzer-architecture.md`](./docs/legal-analyzer-architecture.md)
-- Design system & build order: [`docs/legal-analyzer-execution-blueprint.md`](./docs/legal-analyzer-execution-blueprint.md)
+- Architecture & schema: [`legal-analyzer-architecture.md`](./legal-analyzer-architecture.md)
 - AI agent conventions: [`AGENTS.md`](./AGENTS.md)
 
 **Command summary:**

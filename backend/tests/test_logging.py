@@ -99,3 +99,59 @@ def test_no_raw_print_in_app():
                     found_prints.append(f"{path}:{node.lineno}")
 
     assert not found_prints, f"Found print calls in application code: {found_prints}"
+
+
+def test_module_structured_loggers_initialized():
+    """Verify target modules and routers initialize standard logging.Logger instances."""
+    from app.api.v1.routers import documents
+    from app.api.v1.routers.documents import analysis, chat, crud, review
+    from app.services import ocr_service, storage_service
+
+    assert isinstance(documents.logger, logging.Logger)
+    assert isinstance(crud.logger, logging.Logger)
+    assert isinstance(analysis.logger, logging.Logger)
+    assert isinstance(review.logger, logging.Logger)
+    assert isinstance(chat.logger, logging.Logger)
+    assert isinstance(storage_service.logger, logging.Logger)
+    assert isinstance(ocr_service.logger, logging.Logger)
+
+
+def test_storage_service_structured_logging(caplog, monkeypatch):
+    """Verify storage_service logs warnings when unconfigured and info on mock upload."""
+    from app.services.storage_service import StorageService
+
+    monkeypatch.setattr(settings, "SUPABASE_URL", "")
+    monkeypatch.setattr(settings, "SUPABASE_SERVICE_ROLE_KEY", "")
+
+    with caplog.at_level(logging.INFO):
+        svc = StorageService()
+        assert any(
+            rec.levelno == logging.WARNING and "StorageService initialized in mock mode" in rec.message
+            for rec in caplog.records
+        )
+        svc.upload_file(b"dummy-bytes", "test.pdf", "application/pdf")
+        assert any(
+            rec.levelno == logging.INFO and "StorageService in mock mode. Skipping upload" in rec.message
+            for rec in caplog.records
+        )
+
+
+def test_ocr_service_structured_logging(caplog):
+    """Verify ocr_service logs informational format detection and caught warnings."""
+    from app.services.ocr_service import OCRService
+
+    svc = OCRService()
+    with caplog.at_level(logging.INFO):
+        svc.process_document(b"Sample plain text document for testing.")
+        assert any(
+            rec.levelno == logging.INFO and "Processing document with detected format" in rec.message
+            for rec in caplog.records
+        )
+
+        # Trigger warning in detect_format with invalid path
+        svc.detect_format("non_existent_file_path_for_testing.xyz")
+        assert any(
+            rec.levelno == logging.WARNING and "Failed to read header from" in rec.message
+            for rec in caplog.records
+        )
+

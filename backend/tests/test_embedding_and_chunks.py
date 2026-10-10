@@ -9,6 +9,7 @@ import uuid
 
 import pytest
 from sqlalchemy import create_engine
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -242,4 +243,32 @@ def test_clause_vector_type_sqlite_persistence(db_session, sample_document):
     assert isinstance(retrieved.embedding, list)
     assert len(retrieved.embedding) == 768
     assert retrieved.embedding[0] == pytest.approx(0.123)
+
+
+def test_document_chunk_unique_constraint_enforcement(db_session, sample_document):
+    """
+    Ensure UniqueConstraint('document_id', 'chunk_index', name='uq_document_chunk_index')
+    prevents duplicate chunk indexes for the same document.
+    """
+    chunk1 = DocumentChunk(
+        id=uuid.uuid4(),
+        document_id=sample_document.id,
+        chunk_index=0,
+        chunk_text="First chunk text",
+        embedding=[0.05] * 768,
+    )
+    db_session.add(chunk1)
+    db_session.commit()
+
+    chunk_duplicate = DocumentChunk(
+        id=uuid.uuid4(),
+        document_id=sample_document.id,
+        chunk_index=0,
+        chunk_text="Duplicate chunk index text",
+        embedding=[0.05] * 768,
+    )
+    db_session.add(chunk_duplicate)
+    with pytest.raises(IntegrityError):
+        db_session.commit()
+    db_session.rollback()
 

@@ -17,6 +17,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import relationship
@@ -306,6 +307,10 @@ class DocumentChunk(Base):
     Stores ~800-character overlapping chunks and their 768-dim embeddings.
     """
     __tablename__ = "document_chunks"
+
+    __table_args__ = (
+        UniqueConstraint("document_id", "chunk_index", name="uq_document_chunk_index"),
+    )
 
     id = Column(GUID, primary_key=True, default=uuid.uuid4)
     document_id = Column(GUID, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True)
