@@ -22,7 +22,10 @@ class RiskService:
         """
         score = 100
         for clause in clauses:
-            severity = str(clause.get("severity", "LOW")).upper()
+            if isinstance(clause, dict):
+                severity = str(clause.get("severity", "LOW")).upper()
+            else:
+                severity = "LOW"
             if severity == "HIGH":
                 score -= 15
             elif severity == "MEDIUM":
