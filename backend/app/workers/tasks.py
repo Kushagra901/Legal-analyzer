@@ -60,6 +60,18 @@ def execute_document_analysis(document_id: str):
 
         # Save clauses and risk flags
         for clause_data in analysis.get("clauses", []):
+            if isinstance(clause_data, str):
+                clause_data = {
+                    "clause_type": "General",
+                    "clause_text": clause_data,
+                    "category": "General",
+                    "confidence_score": 0.9,
+                    "severity": "LOW",
+                    "explanation": ""
+                }
+            elif not isinstance(clause_data, dict):
+                continue
+
             confidence_val = clause_data.get("confidence_score")
             confidence_float = float(confidence_val) if confidence_val is not None else 0.95
             db_clause = Clause(
@@ -85,21 +97,38 @@ def execute_document_analysis(document_id: str):
                 db.add(db_flag)
 
         # Save compliance audit record
+        compliance_rule_set = "standard_nda"
+        compliance_violations = []
+        if isinstance(compliance_res, dict):
+            compliance_rule_set = compliance_res.get("rule_set", "standard_nda")
+            compliance_violations = compliance_res.get("violations", [])
+        elif isinstance(compliance_res, list):
+            compliance_violations = compliance_res
+
         db_compliance = ComplianceCheck(
             id=uuid.uuid4(),
             document_id=doc.id,
-            rule_set=compliance_res.get("rule_set", "standard_nda"),
-            result=json.dumps(compliance_res.get("violations", []))
+            rule_set=compliance_rule_set,
+            result=json.dumps(compliance_violations)
         )
         db.add(db_compliance)
 
         # Save legal references
         for citation_data in analysis.get("citations", []):
+            if isinstance(citation_data, str):
+                source = "Legal Citation"
+                citation = citation_data
+            elif isinstance(citation_data, dict):
+                source = citation_data.get("source", "Legal Citation")
+                citation = citation_data.get("citation", str(citation_data))
+            else:
+                continue
+
             db_ref = LegalReference(
                 id=uuid.uuid4(),
                 document_id=doc.id,
-                source=citation_data.get("source"),
-                citation=citation_data.get("citation")
+                source=source,
+                citation=citation
             )
             db.add(db_ref)
 

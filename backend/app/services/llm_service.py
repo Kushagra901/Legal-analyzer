@@ -115,6 +115,22 @@ class LLMService:
             if parsed_data.get("risk_level") == "HIGH":
                 parsed_data["risk_level"] = "MEDIUM"
 
+        # Normalize citations to ensure every item is a dictionary with source and citation
+        if isinstance(parsed_data.get("citations"), list):
+            normalized_citations = []
+            for item in parsed_data["citations"]:
+                if isinstance(item, dict):
+                    normalized_citations.append({
+                        "source": str(item.get("source") or "Legal Citation"),
+                        "citation": str(item.get("citation") or item.get("text") or "")
+                    })
+                elif isinstance(item, str):
+                    normalized_citations.append({
+                        "source": "Legal Citation",
+                        "citation": item
+                    })
+            parsed_data["citations"] = normalized_citations
+
         return parsed_data
 
     @retry(
