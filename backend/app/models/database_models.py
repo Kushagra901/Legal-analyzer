@@ -145,10 +145,12 @@ class Document(Base):
         nullable=False
     )
     summary: str = Column(Text, nullable=True)
+    error_message: str = Column(Text, nullable=True)
     safety_score: int = Column(Integer, nullable=True)
     risk_level: str = Column(String(50), nullable=True)
     parties = Column(JSON, nullable=True)
     key_dates = Column(JSON, nullable=True)
+    key_terms = Column(JSON, nullable=True)
     missing_sections = Column(JSON, nullable=True)
     document_overview: str = Column(Text, nullable=True)
     plain_english_summary: str = Column(Text, nullable=True)

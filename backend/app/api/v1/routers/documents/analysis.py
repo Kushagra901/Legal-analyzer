@@ -124,7 +124,40 @@ def run_analysis(
             )
             db.add(db_flag)
 
-    doc.summary = analysis.get("summary", "")
+    raw_summary = analysis.get("summary")
+    summary_text = ""
+    key_terms_data = analysis.get("key_terms")
+    if isinstance(raw_summary, dict):
+        summary_text = str(
+            raw_summary.get("risk_posture")
+            or raw_summary.get("text")
+            or raw_summary.get("summary")
+            or ""
+        )
+        if key_terms_data is None:
+            key_terms_data = raw_summary.get("key_terms")
+    elif raw_summary is not None:
+        summary_text = str(raw_summary)
+    else:
+        summary_text = ""
+
+    doc.summary = summary_text
+    doc.key_terms = key_terms_data
+    if analysis.get("document_overview"):
+        doc.document_overview = analysis.get("document_overview")
+    if analysis.get("parties"):
+        doc.parties = analysis.get("parties")
+    if analysis.get("key_dates"):
+        doc.key_dates = analysis.get("key_dates")
+    if analysis.get("missing_sections"):
+        doc.missing_sections = analysis.get("missing_sections")
+    if analysis.get("plain_english_summary"):
+        doc.plain_english_summary = analysis.get("plain_english_summary")
+    if analysis.get("safety_score") is not None:
+        doc.safety_score = analysis.get("safety_score")
+    if analysis.get("risk_level"):
+        doc.risk_level = analysis.get("risk_level")
+    doc.error_message = None
     db.commit()
 
     return AnalysisStatusResponse(

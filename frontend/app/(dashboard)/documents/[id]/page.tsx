@@ -29,11 +29,12 @@ interface DocumentDetail {
   document_id: string;
   filename: string;
   status: string;
+  error_message?: string;
   uploaded_at?: string;
   original_text?: string;
   extracted_text?: string;
   analysis?: {
-    summary?: string;
+    summary?: string | any;
     safety_score?: number;
     risk_level?: string;
     clauses?: ClauseItem[];
@@ -47,6 +48,7 @@ interface DocumentDetail {
     document_overview?: string;
     parties?: string[] | any;
     key_dates?: Record<string, any> | any;
+    key_terms?: string[] | any;
     missing_sections?: string[];
     plain_english_summary?: string;
     recommendations?: string[];
@@ -304,6 +306,13 @@ export default function DocumentDetailPage({
         </div>
       </div>
 
+      {/* Failure Alert Banner */}
+      {document.status === "failed" && (
+        <div className="p-4 bg-[var(--risk-high-bg)] border border-[var(--risk-high)] text-[var(--risk-high)] text-xs">
+          {document.error_message || "Document analysis failed. Please retry."}
+        </div>
+      )}
+
       {/* Confirmation Dialog Overlay */}
       {showDeleteModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 no-print">
@@ -454,7 +463,9 @@ export default function DocumentDetailPage({
                 <div className="text-right max-w-xs">
                   <p className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wider">Executive Overview</p>
                   <p className="text-xs text-[var(--text-main)] mt-1 leading-snug">
-                    {analysis.summary || "Summary generation pending."}
+                    {typeof analysis.summary === "object" && analysis.summary !== null
+                      ? (analysis.summary.risk_posture || "Summary generation pending.")
+                      : (analysis.summary || "Summary generation pending.")}
                   </p>
                 </div>
               </CardContent>

@@ -130,6 +130,24 @@ class LLMService:
                         "citation": item
                     })
             parsed_data["citations"] = normalized_citations
+        else:
+            parsed_data["citations"] = []
+
+        # Normalize summary if returned as dict ({'key_terms': [...], 'risk_posture': '...'})
+        raw_summary = parsed_data.get("summary")
+        if isinstance(raw_summary, dict):
+            risk_posture = (
+                raw_summary.get("risk_posture")
+                or raw_summary.get("text")
+                or raw_summary.get("summary")
+                or ""
+            )
+            key_terms = raw_summary.get("key_terms")
+            parsed_data["summary"] = str(risk_posture)
+            if key_terms is not None and "key_terms" not in parsed_data:
+                parsed_data["key_terms"] = key_terms
+        elif raw_summary is not None and not isinstance(raw_summary, str):
+            parsed_data["summary"] = str(raw_summary)
 
         return parsed_data
 
