@@ -163,18 +163,31 @@ class ReportGeneratorService:
             recommendations.append("Confirm all provisions align with standard organizational templates and practices.")
             recommendations.append("Ensure the designated governing jurisdiction is acceptable for your operations before formal execution.")
 
+        summary_val = doc.summary or "Analysis complete."
+        if isinstance(summary_val, dict):
+            summary_val = str(summary_val.get("risk_posture") or summary_val.get("text") or "Analysis complete.")
+
+        overview_val = doc.document_overview or summary_val or "Document analysis completed."
+        if isinstance(overview_val, dict):
+            overview_val = str(overview_val.get("risk_posture") or overview_val.get("text") or summary_val)
+
+        plain_val = doc.plain_english_summary or summary_val or "Summary of contractual provisions."
+        if isinstance(plain_val, dict):
+            plain_val = str(plain_val.get("risk_posture") or plain_val.get("text") or summary_val)
+
         return {
             "document_id": str(doc.id),
             "filename": doc.filename,
             "uploaded_at": doc.uploaded_at.isoformat() if doc.uploaded_at else None,
             "safety_score": doc.safety_score if doc.safety_score is not None else 100,
             "risk_level": doc.risk_level if doc.risk_level is not None else "LOW",
-            "summary": doc.summary or "Analysis complete.",
-            "document_overview": doc.document_overview or doc.summary or "Document analysis completed.",
+            "summary": summary_val,
+            "document_overview": overview_val,
             "parties": doc.parties or [],
             "key_dates": doc.key_dates or {},
+            "key_terms": getattr(doc, "key_terms", None) or [],
             "missing_sections": doc.missing_sections or [],
-            "plain_english_summary": doc.plain_english_summary or doc.summary or "Summary of contractual provisions.",
+            "plain_english_summary": plain_val,
             "clauses": clauses,
             "risk_flags": risk_flags,
             "recommendations": recommendations,
@@ -200,19 +213,45 @@ class ReportGeneratorService:
         """
         Normalize report data input structure with safe defaults.
         """
+        raw_summary = data.get("summary")
+        if isinstance(raw_summary, dict):
+            summary_str = str(raw_summary.get("risk_posture") or raw_summary.get("text") or "")
+        elif raw_summary is not None:
+            summary_str = str(raw_summary)
+        else:
+            summary_str = "No executive summary available."
+
+        raw_overview = data.get("document_overview")
+        if isinstance(raw_overview, dict):
+            overview_str = str(raw_overview.get("risk_posture") or raw_overview.get("text") or summary_str)
+        elif raw_overview is not None:
+            overview_str = str(raw_overview)
+        else:
+            overview_str = summary_str or "No document overview available."
+
+        raw_plain = data.get("plain_english_summary")
+        if isinstance(raw_plain, dict):
+            plain_str = str(raw_plain.get("risk_posture") or raw_plain.get("text") or summary_str)
+        elif raw_plain is not None:
+            plain_str = str(raw_plain)
+        else:
+            plain_str = summary_str or "No plain-English summary available."
+
         normalized = {
             "document_id": str(data.get("document_id", "")),
             "filename": str(data.get("filename", "Untitled Document")),
             "generated_at": data.get("generated_at") or datetime.now().strftime("%B %d, %Y at %H:%M UTC"),
             "safety_score": data.get("safety_score") if data.get("safety_score") is not None else 100,
             "risk_level": str(data.get("risk_level", "LOW")).upper(),
-            "document_overview": data.get("document_overview") or data.get("summary", "No document overview available."),
+            "summary": summary_str,
+            "document_overview": overview_str,
             "parties": data.get("parties") or [],
             "key_dates": data.get("key_dates") or {},
+            "key_terms": data.get("key_terms") or [],
             "clauses": data.get("clauses") or [],
             "risk_flags": data.get("risk_flags") or [],
             "missing_sections": data.get("missing_sections") or [],
-            "plain_english_summary": data.get("plain_english_summary") or data.get("summary", "No plain-English summary available."),
+            "plain_english_summary": plain_str,
             "recommendations": data.get("recommendations") or [],
             "citations": data.get("citations") or [],
             "compliance_violations": data.get("compliance_violations") or []

@@ -60,6 +60,7 @@ export interface AnalysisDetailResponse {
   document_overview?: string;
   parties?: string[] | any;
   key_dates?: Record<string, any> | any;
+  key_terms?: string[] | any;
   missing_sections?: string[];
   plain_english_summary?: string;
   recommendations?: string[];
@@ -69,6 +70,7 @@ export interface DocumentResponse {
   document_id: string;
   filename: string;
   status: string;
+  error_message?: string;
   uploaded_at?: string;
   original_text?: string;
   extracted_text?: string;
@@ -79,6 +81,7 @@ export interface ReportResponse {
   document_id: string;
   filename: string;
   summary: string;
+  key_terms?: string[] | any;
   safety_score: number;
   risk_level: string;
   clauses: ClauseResponse[];

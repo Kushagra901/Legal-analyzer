@@ -151,7 +151,9 @@ export default function ReportPage({
             1. Executive Summary
           </h2>
           <p className="text-xs leading-relaxed text-[var(--text-main)] bg-[var(--bg-page)] p-4 border border-[var(--border-subtle)]">
-            {report.summary || "No executive summary available for this contract."}
+            {typeof report.summary === "object" && report.summary !== null
+              ? ((report.summary as any).risk_posture || "No executive summary available for this contract.")
+              : (report.summary || "No executive summary available for this contract.")}
           </p>
         </section>
 

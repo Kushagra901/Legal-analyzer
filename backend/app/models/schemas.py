@@ -45,6 +45,7 @@ class AnalysisDetailResponse(BaseModel):
     parties: list[str] | list[dict] | dict | None = Field(default=None, description="Identified contract parties")
     key_dates: dict | list[dict] | list[str] | None = Field(default=None, description="Identified key contract dates")
     missing_sections: list[str] | None = Field(default=None, description="Missing standard sections/protections")
+    key_terms: list[str] | list[dict] | dict | None = Field(default=None, description="Identified key contract terms")
     plain_english_summary: str | None = Field(default=None, description="Plain-English explanation of contract terms")
     extracted_text: str | None = Field(default=None, description="Extracted raw contract text")
     original_text: str | None = Field(default=None, description="Extracted raw contract text alias")
@@ -84,6 +85,7 @@ class DocumentResponse(BaseModel):
     filename: str = Field(..., description="Original filename")
     status: str = Field(..., description="Processing status")
     uploaded_at: str | None = Field(default=None, description="ISO 8601 upload timestamp")
+    error_message: str | None = Field(default=None, description="Processing error message if failed")
     original_text: str | None = Field(default=None, description="Extracted raw text content")
     extracted_text: str | None = Field(default=None, description="Extracted raw text content alias")
     analysis: AnalysisDetailResponse | None = Field(default=None, description="AI analysis details")
@@ -106,6 +108,7 @@ class ReportResponse(BaseModel):
     parties: list[str] | list[dict] | dict | None = Field(default=None, description="Identified contract parties")
     key_dates: dict | list[dict] | list[str] | None = Field(default=None, description="Identified key contract dates")
     missing_sections: list[str] | None = Field(default=None, description="Missing standard sections/protections")
+    key_terms: list[str] | list[dict] | dict | None = Field(default=None, description="Identified key contract terms")
     plain_english_summary: str | None = Field(default=None, description="Plain-English explanation of contract terms")
 
 

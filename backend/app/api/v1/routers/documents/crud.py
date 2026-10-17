@@ -373,7 +373,7 @@ def get_document_status(
         "failed": 0
     }
     progress_val = progress_map.get(doc.status, 50)
-    error_msg = doc.summary if doc.status == "failed" else None
+    error_msg = doc.error_message if doc.status == "failed" else None
 
     return AnalysisStatusResponse(
         status=doc.status,
@@ -459,20 +459,33 @@ def get_document(
         recommendations.append("Confirm all provisions align with standard organizational templates and practices.")
         recommendations.append("Ensure the designated governing jurisdiction is acceptable for your operations before formal execution.")
 
+    summary_val = doc.summary or "Analysis complete."
+    if isinstance(summary_val, dict):
+        summary_val = str(summary_val.get("risk_posture") or summary_val.get("text") or "Analysis complete.")
+
     return DocumentResponse(
         document_id=str(doc.id),
         filename=doc.filename,
         status=doc.status,
         uploaded_at=doc.uploaded_at.isoformat() if doc.uploaded_at else None,
+        error_message=doc.error_message if doc.status == "failed" else None,
         original_text=original_text,
         analysis=AnalysisDetailResponse(
             safety_score=doc.safety_score if doc.safety_score is not None else 100,
             risk_level=doc.risk_level if doc.risk_level is not None else "LOW",
-            summary=doc.summary or "Analysis complete.",
+            summary=summary_val,
             clauses=clauses,
             citations=citations,
             recommendations=recommendations,
-            compliance_violations=violations
+            compliance_violations=violations,
+            document_overview=doc.document_overview,
+            parties=doc.parties,
+            key_dates=doc.key_dates,
+            key_terms=doc.key_terms,
+            missing_sections=doc.missing_sections,
+            plain_english_summary=doc.plain_english_summary,
+            extracted_text=original_text,
+            original_text=original_text,
         )
     )
 

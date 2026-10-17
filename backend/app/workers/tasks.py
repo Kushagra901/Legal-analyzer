@@ -52,14 +52,14 @@ def execute_document_analysis(document_id: str):
         analysis = llm_service.analyze_contract(extracted_text)
 
         # Calculate scores
-        safety_score = risk_service.score_document_risk(analysis.get("clauses", []))
+        safety_score = risk_service.score_document_risk(analysis.get("clauses") or [])
         risk_level = risk_service.get_risk_level(safety_score)
 
         # Run compliance audit
         compliance_res = compliance_service.check_compliance(extracted_text, "standard_nda")
 
         # Save clauses and risk flags
-        for clause_data in analysis.get("clauses", []):
+        for clause_data in (analysis.get("clauses") or []):
             if isinstance(clause_data, str):
                 clause_data = {
                     "clause_type": "General",
@@ -101,7 +101,7 @@ def execute_document_analysis(document_id: str):
         compliance_violations = []
         if isinstance(compliance_res, dict):
             compliance_rule_set = compliance_res.get("rule_set", "standard_nda")
-            compliance_violations = compliance_res.get("violations", [])
+            compliance_violations = compliance_res.get("violations") or []
         elif isinstance(compliance_res, list):
             compliance_violations = compliance_res
 
@@ -114,7 +114,7 @@ def execute_document_analysis(document_id: str):
         db.add(db_compliance)
 
         # Save legal references
-        for citation_data in analysis.get("citations", []):
+        for citation_data in (analysis.get("citations") or []):
             if isinstance(citation_data, str):
                 source = "Legal Citation"
                 citation = citation_data
@@ -132,8 +132,27 @@ def execute_document_analysis(document_id: str):
             )
             db.add(db_ref)
 
+        # Normalize summary and key_terms before database write
+        raw_summary = analysis.get("summary")
+        summary_text = ""
+        key_terms_data = analysis.get("key_terms")
+        if isinstance(raw_summary, dict):
+            summary_text = str(
+                raw_summary.get("risk_posture")
+                or raw_summary.get("text")
+                or raw_summary.get("summary")
+                or ""
+            )
+            if key_terms_data is None:
+                key_terms_data = raw_summary.get("key_terms")
+        elif raw_summary is not None:
+            summary_text = str(raw_summary)
+        else:
+            summary_text = ""
+
         # Update Document record
-        doc.summary = analysis.get("summary", "")
+        doc.summary = summary_text
+        doc.key_terms = key_terms_data
         doc.document_overview = analysis.get("document_overview")
         doc.parties = analysis.get("parties")
         doc.key_dates = analysis.get("key_dates")
@@ -142,6 +161,7 @@ def execute_document_analysis(document_id: str):
         doc.safety_score = safety_score
         doc.risk_level = risk_level
         doc.status = "completed"
+        doc.error_message = None
         db.commit()
 
         # Run text chunking and 768-dim vector embedding generation once per document
@@ -161,12 +181,16 @@ def execute_document_analysis(document_id: str):
 
     except Exception as e:
         db.rollback()
-        logger.error("Error in analyze_document_task for %s: %s", document_id, e)
-        doc = db.query(Document).filter(Document.id == uuid.UUID(document_id)).first()
-        if doc:
-            doc.status = "failed"
-            doc.summary = f"Analysis failure: {str(e)}"
-            db.commit()
+        logger.exception("Error in analyze_document_task for %s: %s", document_id, e)
+        try:
+            doc = db.query(Document).filter(Document.id == uuid.UUID(document_id)).first()
+            if doc:
+                doc.status = "failed"
+                doc.error_message = "Document analysis failed. Please retry."
+                db.commit()
+        except Exception as inner_e:
+            db.rollback()
+            logger.exception("Failed to update status to failed for %s: %s", document_id, inner_e)
     finally:
         db.close()
 

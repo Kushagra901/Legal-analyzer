@@ -130,9 +130,17 @@ def get_document_analysis(db: Session, document_id: str) -> dict[str, Any]:
     flags = db.query(RiskFlag).join(Clause).filter(Clause.document_id == document_id).all()
     compliance = db.query(ComplianceCheck).filter(ComplianceCheck.document_id == document_id).all()
 
+    summary_val = getattr(doc, "summary", None) or ""
+    if isinstance(summary_val, dict):
+        summary_val = str(summary_val.get("risk_posture") or summary_val.get("text") or "")
+
     return {
         "document_id": str(doc.id),
         "filename": doc.filename,
+        "status": getattr(doc, "status", None),
+        "summary": summary_val,
+        "key_terms": getattr(doc, "key_terms", None),
+        "error_message": getattr(doc, "error_message", None),
         "safety_score": getattr(doc, 'safety_score', None),
         "risk_level": getattr(doc, 'risk_level', None),
         "clauses": [{"id": str(c.id), "clause_type": c.clause_type, "text": getattr(c, "clause_text", getattr(c, "text", ""))} for c in clauses],
