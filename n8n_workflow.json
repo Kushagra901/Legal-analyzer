@@ -88,7 +88,7 @@
       "typeVersion": 1,
       "position": [
         700,
-        180
+        300
       ],
       "id": "mark-as-running",
       "name": "Postgres (Mark as Running)",
@@ -101,8 +101,8 @@
     },
     {
       "parameters": {
-        "method": "GET",
-        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $json.document_id }}",
+        "method": "POST",
+        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $json.body?.document_id || $json.document_id || $('Webhook (Document Uploaded)').first().json.body.document_id }}/process",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -120,315 +120,8 @@
         900,
         300
       ],
-      "id": "get-document-data",
-      "name": "HTTP Request (Get Doc Info)"
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "boolean": [],
-          "number": [
-            {
-              "value1": "={{ ($json.original_text || '').length }}",
-              "operation": "larger",
-              "value2": 200
-            }
-          ]
-        }
-      },
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 1,
-      "position": [
-        1050,
-        300
-      ],
-      "id": "check-native-text",
-      "name": "IF (Native Text Sufficient?)"
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $json.document_id }}/ocr",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "X-Internal-Token",
-              "value": "={{ $env.INTERNAL_SERVICE_TOKEN }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4,
-      "position": [
-        1200,
-        420
-      ],
-      "id": "run-ocr-fallback",
-      "name": "HTTP Request (Run OCR Fallback)"
-    },
-    {
-      "parameters": {
-        "method": "GET",
-        "url": "=http://host.docker.internal:8000/api/v1/system/ollama-status?document_id={{ $json.document_id || $('HTTP Request (Get Doc Info)').first().json.document_id || $('Webhook (Document Uploaded)').first().json.body.document_id }}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "X-Internal-Token",
-              "value": "={{ $env.INTERNAL_SERVICE_TOKEN }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4,
-      "position": [
-        1380,
-        300
-      ],
-      "id": "check-ollama-status",
-      "name": "HTTP Request (Check Ollama Status)",
-      "onError": "continueRegularOutput",
-      "continueOnFail": true
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "boolean": [
-            {
-              "value1": "={{ $json.healthy }}",
-              "value2": true
-            }
-          ]
-        }
-      },
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 1,
-      "position": [
-        1520,
-        300
-      ],
-      "id": "check-ollama-healthy",
-      "name": "IF (Ollama Healthy?)"
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $json.document_id || $('HTTP Request (Get Doc Info)').first().json.document_id || $('Webhook (Document Uploaded)').first().json.body.document_id }}/agent-analyze",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "X-Internal-Token",
-              "value": "={{ $env.INTERNAL_SERVICE_TOKEN }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4,
-      "position": [
-        1680,
-        200
-      ],
-      "id": "run-agent-analysis",
-      "name": "HTTP Request (Agent Analyze)"
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $json.document_id || $('HTTP Request (Get Doc Info)').first().json.document_id || $('Webhook (Document Uploaded)').first().json.body.document_id }}/analyze",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "X-Internal-Token",
-              "value": "={{ $env.INTERNAL_SERVICE_TOKEN }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4,
-      "position": [
-        1680,
-        420
-      ],
-      "id": "run-llm-analysis",
-      "name": "HTTP Request (LLM Clause Analysis)"
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $json.document_id }}/score",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "X-Internal-Token",
-              "value": "={{ $env.INTERNAL_SERVICE_TOKEN }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4,
-      "position": [
-        1600,
-        300
-      ],
-      "id": "run-risk-scoring",
-      "name": "HTTP Request (Calculate Risk Score)"
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $json.document_id }}/compliance",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "X-Internal-Token",
-              "value": "={{ $env.INTERNAL_SERVICE_TOKEN }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4,
-      "position": [
-        1800,
-        300
-      ],
-      "id": "run-compliance-checks",
-      "name": "HTTP Request (Check Compliance)"
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $json.document_id }}/report",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "X-Internal-Token",
-              "value": "={{ $env.INTERNAL_SERVICE_TOKEN }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4,
-      "position": [
-        2000,
-        300
-      ],
-      "id": "generate-report",
-      "name": "HTTP Request (Generate Report)"
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $json.document_id }}/deep-extract",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "X-Internal-Token",
-              "value": "={{ $env.INTERNAL_SERVICE_TOKEN }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4,
-      "position": [
-        2100,
-        300
-      ],
-      "id": "run-deep-extraction",
-      "name": "HTTP Request (Deep Extraction)",
-      "onError": "continueRegularOutput",
-      "continueOnFail": true
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $json.document_id }}/audit",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "X-Internal-Token",
-              "value": "={{ $env.INTERNAL_SERVICE_TOKEN }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4,
-      "position": [
-        2200,
-        300
-      ],
-      "id": "update-audit-log",
-      "name": "HTTP Request (Update Audit Log)"
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "number": [
-            {
-              "value1": "={{ $json.safety_score }}",
-              "operation": "smaller",
-              "value2": 50
-            }
-          ]
-        }
-      },
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 1,
-      "position": [
-        2400,
-        300
-      ],
-      "id": "check-high-risk",
-      "name": "IF (High Risk?)"
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "=http://host.docker.internal:8000/api/v1/documents/{{ $json.document_id }}/escalate",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "X-Internal-Token",
-              "value": "={{ $env.INTERNAL_SERVICE_TOKEN }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4,
-      "position": [
-        2550,
-        180
-      ],
-      "id": "create-reviewer-task",
-      "name": "HTTP Request (Create Reviewer Task)"
+      "id": "process-document-pipeline",
+      "name": "HTTP Request (Process Document)"
     },
     {
       "parameters": {
@@ -439,7 +132,7 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 1,
       "position": [
-        2700,
+        1100,
         300
       ],
       "id": "mark-run-completed",
@@ -478,7 +171,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
-        2900,
+        1300,
         300
       ],
       "id": "notify-user-email",
@@ -694,178 +387,14 @@
       "main": [
         [
           {
-            "node": "HTTP Request (Get Doc Info)",
+            "node": "HTTP Request (Process Document)",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "HTTP Request (Get Doc Info)": {
-      "main": [
-        [
-          {
-            "node": "IF (Native Text Sufficient?)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "IF (Native Text Sufficient?)": {
-      "main": [
-        [
-          {
-            "node": "HTTP Request (Check Ollama Status)",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "HTTP Request (Run OCR Fallback)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "HTTP Request (Run OCR Fallback)": {
-      "main": [
-        [
-          {
-            "node": "HTTP Request (Check Ollama Status)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "HTTP Request (Check Ollama Status)": {
-      "main": [
-        [
-          {
-            "node": "IF (Ollama Healthy?)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "IF (Ollama Healthy?)": {
-      "main": [
-        [
-          {
-            "node": "HTTP Request (Agent Analyze)",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "HTTP Request (LLM Clause Analysis)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "HTTP Request (Agent Analyze)": {
-      "main": [
-        [
-          {
-            "node": "HTTP Request (Calculate Risk Score)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "HTTP Request (LLM Clause Analysis)": {
-      "main": [
-        [
-          {
-            "node": "HTTP Request (Calculate Risk Score)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "HTTP Request (Calculate Risk Score)": {
-      "main": [
-        [
-          {
-            "node": "HTTP Request (Check Compliance)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "HTTP Request (Check Compliance)": {
-      "main": [
-        [
-          {
-            "node": "HTTP Request (Generate Report)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "HTTP Request (Generate Report)": {
-      "main": [
-        [
-          {
-            "node": "HTTP Request (Deep Extraction)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "HTTP Request (Deep Extraction)": {
-      "main": [
-        [
-          {
-            "node": "HTTP Request (Update Audit Log)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "HTTP Request (Update Audit Log)": {
-      "main": [
-        [
-          {
-            "node": "IF (High Risk?)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "IF (High Risk?)": {
-      "main": [
-        [
-          {
-            "node": "HTTP Request (Create Reviewer Task)",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Postgres (Mark Run Completed)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "HTTP Request (Create Reviewer Task)": {
+    "HTTP Request (Process Document)": {
       "main": [
         [
           {

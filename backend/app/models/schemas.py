@@ -297,5 +297,7 @@ class ComplianceResponse(BaseModel):
     violations: list[str] = Field(default_factory=list, description="List of detected policy violations or missing required clauses")
     safety_score: int | None = Field(default=None, description="Current safety score of the document")
     risk_level: str | None = Field(default=None, description="Risk level (LOW, MEDIUM, HIGH)")
-
-
+class ProcessPipelineResponse(BaseModel):
+    """Document pipeline processing response schema."""
+    document_id: str = Field(..., description="UUID of the processed document")
+    status: str = Field(..., description="Processing status of the pipeline")

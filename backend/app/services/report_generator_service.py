@@ -999,3 +999,79 @@ class ReportGeneratorService:
         buffer = io.BytesIO()
         doc.save(buffer)
         return buffer.getvalue()
+
+    def generate_report(
+        self,
+        document_id: str | Any,
+        format: str = "pdf",
+        db: Any = None
+    ) -> dict[str, Any]:
+        """
+        Generate and persist a report for a document by document ID.
+        Assembles report findings, renders PDF/DOCX bytes, saves to storage, and writes Report record.
+
+        Args:
+            document_id: Document UUID identifier.
+            format: Target output format ('pdf' or 'docx').
+            db: Optional active SQLAlchemy session.
+
+        Returns:
+            dict[str, Any]: Report metadata including report_id, document_id, format, and file_url.
+        """
+        import uuid
+
+        from app.core.database import SessionLocal
+        from app.models import Document, Report
+        from app.services.storage_service import StorageService
+
+        doc_uuid = uuid.UUID(str(document_id)) if not isinstance(document_id, uuid.UUID) else document_id
+        session = db or SessionLocal()
+        should_close = db is None
+        try:
+            doc = session.query(Document).filter(Document.id == doc_uuid).first()
+            if not doc:
+                raise ValueError(f"Document {doc_uuid} not found")
+
+            report_data = ReportGeneratorService.assemble_report_data(doc, session)
+            ext = "docx" if format == "docx" else "pdf"
+
+            if ext == "docx":
+                file_bytes = self.generate_docx(report_data)
+                content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                storage_path = f"reports/{doc.id}/review_memorandum.docx"
+            else:
+                file_bytes = self.generate_pdf(report_data)
+                content_type = "application/pdf"
+                storage_path = f"reports/{doc.id}/review_memorandum.pdf"
+
+            storage_service = StorageService()
+            try:
+                storage_service.upload_file(
+                    file_data=file_bytes,
+                    file_path=storage_path,
+                    content_type=content_type
+                )
+                report_url = storage_service.get_public_url(storage_path)
+            except Exception:
+                report_url = f"/api/v1/reports/{doc.id}/download?format={ext}"
+
+            session.query(Report).filter(Report.document_id == doc.id, Report.format == ext).delete()
+            db_report = Report(
+                id=uuid.uuid4(),
+                document_id=doc.id,
+                format=ext,
+                file_url=report_url
+            )
+            session.add(db_report)
+            session.commit()
+            session.refresh(db_report)
+
+            return {
+                "report_id": str(db_report.id),
+                "document_id": str(doc.id),
+                "format": ext,
+                "file_url": db_report.file_url
+            }
+        finally:
+            if should_close:
+                session.close()

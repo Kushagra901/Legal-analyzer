@@ -18,6 +18,7 @@ from app.core.database import get_db
 from app.core.limiter import limiter
 from app.models import (
     AuditLog,
+    AutomationRun,
     Clause,
     ComplianceCheck,
     DeepExtraction,
@@ -31,12 +32,15 @@ from app.models.schemas import (
     ComplianceAuditRequest,
     ComplianceResponse,
     DeepExtractionResponse,
+    ProcessPipelineResponse,
     QuickSummaryResponse,
 )
+from app.services.audit_service import AuditService
 from app.services.compliance_service import ComplianceService
 from app.services.deep_extraction_service import DeepExtractionService
 from app.services.legal_chunker import split_legal_clauses
 from app.services.llm_service import LLMService
+from app.services.ocr_service import OCRService
 from app.services.ollama_service import OllamaService
 from app.services.report_generator_service import ReportGeneratorService
 from app.services.risk_service import RiskService
@@ -49,6 +53,108 @@ logger = logging.getLogger(__name__)
 class AuditAction(BaseModel):
     """Schema for custom audit action recording."""
     action: str | None = None
+
+
+@router.post("/{document_id}/process", response_model=ProcessPipelineResponse)
+@limiter.limit("60/minute")
+def process_document(
+    request: Request,
+    document_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+) -> ProcessPipelineResponse:
+    """
+    Consolidated master document analysis pipeline endpoint.
+    Orchestrates OCR extraction, LLM contract analysis, compliance audit,
+    memorandum report generation, and audit logging in a single idempotent transaction.
+    """
+    from app.core.tracing import get_trace_id, set_trace_id
+
+    active_trace = getattr(request.state, "trace_id", None) or get_trace_id()
+    if active_trace:
+        set_trace_id(active_trace)
+
+    doc = get_accessible_document(db, document_id, current_user)
+
+    # 1. Ensure idempotency via automation_runs ledger
+    workflow_name = "Legal Analyzer Pipeline"
+    existing_run = db.query(AutomationRun).filter(
+        AutomationRun.document_id == doc.id,
+        AutomationRun.workflow_name == workflow_name
+    ).first()
+
+    if existing_run and existing_run.status == "completed":
+        logger.info("Document already processed; returning idempotent completed status", extra={"document_id": str(doc.id)})
+        return ProcessPipelineResponse(document_id=str(doc.id), status="completed")
+
+    if existing_run and existing_run.status == "running":
+        logger.info("Document currently processing in another run; returning running status", extra={"document_id": str(doc.id)})
+        return ProcessPipelineResponse(document_id=str(doc.id), status="running")
+
+    if not existing_run:
+        existing_run = AutomationRun(
+            id=uuid.uuid4(),
+            document_id=doc.id,
+            workflow_name=workflow_name,
+            status="running",
+            retry_count=0
+        )
+        db.add(existing_run)
+    else:
+        existing_run.status = "running"
+
+    doc.status = "processing"
+    db.commit()
+
+    try:
+        # Step 1: OCR / Text Extraction
+        ocr_service = OCRService()
+        ocr_service.extract_text(str(doc.id), db=db)
+
+        # Step 2: LLM Contract Analysis (clauses, risk flags, Gemini/Ollama fallback)
+        from app.api.v1.routers import documents
+        llm_cls = getattr(documents, "LLMService", LLMService)
+        llm_service = llm_cls()
+        llm_service.analyze_contract(str(doc.id), db=db)
+
+        # Step 3: Compliance Check
+        compliance_service = ComplianceService()
+        compliance_service.check_compliance(str(doc.id), db=db)
+
+        # Step 4: Report Generation (PDF memorandum)
+        report_generator_service = ReportGeneratorService()
+        report_generator_service.generate_report(str(doc.id), format="pdf", db=db)
+
+        # Step 5: Audit Log Event
+        audit_service = AuditService()
+        audit_service.log_event(str(doc.id), "pipeline_completed", db=db)
+
+        # Finalize statuses
+        doc.status = "completed"
+        doc.error_message = None
+        existing_run.status = "completed"
+        db.commit()
+
+        return ProcessPipelineResponse(document_id=str(doc.id), status="completed")
+
+    except Exception as e:
+        db.rollback()
+        logger.exception("Master document processing pipeline failed", extra={"document_id": str(doc.id), "error": str(e)})
+        try:
+            if existing_run:
+                existing_run.status = "failed"
+                existing_run.retry_count = (existing_run.retry_count or 0) + 1
+            doc.status = "failed"
+            doc.error_message = "Document processing pipeline failed. Please retry."
+            db.commit()
+        except Exception as inner_e:
+            db.rollback()
+            logger.error("Failed to persist failure status for document", extra={"document_id": str(doc.id), "error": str(inner_e)})
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Document processing pipeline failed. Please retry."
+        )
 
 
 @router.post("/{document_id}/ocr", response_model=AnalysisStatusResponse)

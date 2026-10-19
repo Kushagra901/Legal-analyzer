@@ -75,6 +75,22 @@ Legal Analyzer is a web app that lets users upload legal documents (contracts, N
 - Do not remove or restructure earlier architecture boundaries (the folder structure and module responsibilities defined in this file) without asking first.
 - At the end of every task, list exactly which files were changed or created, and state how you verified the work (tests run, server started, screenshot taken, etc.).
 
+## Engineering Loop & Edge Case Protocol
+
+### The Autonomous Loop
+For every task, you must follow this loop internally before reporting back to me:
+1. **Plan:** Analyze the request and identify at least 3 edge cases (e.g., missing data, network failure, malformed LLM response, empty lists).
+2. **Implement:** Write the code and the corresponding tests simultaneously.
+3. **Test:** Run the tests.
+4. **Fix:** If tests fail, analyze the traceback, fix the code, and re-run. Repeat until green.
+5. **Verify:** Check that the implementation handles the edge cases identified in Step 1.
+
+### Edge Case Rules
+- Never assume external APIs (Gemini, Ollama, n8n) will return the perfect JSON. Always code defensively.
+- Always handle database transaction rollbacks on failure.
+- If a function takes a list, always test the empty list `[]` case.
+- If a function parses a string, always test the `None` or empty string `""` case.
+
 ## STOP AND ASK — do not proceed without human confirmation
 - Do not create, rotate, or hardcode any real API key, database credential, or secret. Use placeholder values in `.env.example` only.
 - Do not deploy to a production environment or push to a public repository.

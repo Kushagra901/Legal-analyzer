@@ -61,8 +61,8 @@ app.add_middleware(
     allow_origins=[settings.FRONTEND_URL],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-Request-ID", "X-Internal-Token"],
-    expose_headers=["X-Request-ID"],
+    allow_headers=["Authorization", "Content-Type", "X-Request-ID", "X-Trace-ID", "X-Internal-Token"],
+    expose_headers=["X-Request-ID", "X-Trace-ID"],
     max_age=600,
 )
 
