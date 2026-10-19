@@ -8,6 +8,8 @@ import io
 import logging
 import os
 import re
+import uuid
+from typing import Any
 
 import docx
 import fitz  # PyMuPDF
@@ -260,7 +262,7 @@ class OCRService:
             tuple[str, str, float]: (extracted_text, method_used, parsing_confidence)
         """
         file_format = self.detect_format(file_source)
-        logger.info("Processing document with detected format: %s", file_format)
+        logger.info("Processing document with detected format: %s", file_format, extra={"format": file_format})
 
         if file_format == "pdf":
             native_text = self.extract_text_natively(file_source)
@@ -312,10 +314,52 @@ class OCRService:
                 confidence = 0.3 if len(text.strip()) >= 50 else 0.1
                 return text, "fallback", confidence
 
-    def extract_text(self, file_path: str) -> str:
+    def extract_text(self, file_path_or_doc_id: str | uuid.UUID, db: Any = None) -> str:
         """
-        Deprecated. Legacy compatibility helper.
+        Extract text from a document by document UUID or local file path.
+        If a UUID is provided, queries ExtractedText from the database.
+        If a file path is provided, runs document parsing.
         """
-        logger.info("Calling legacy extract_text for: %s", file_path)
-        text_content, _, _ = self.process_document(file_path)
-        return text_content
+        is_uuid = False
+        doc_uuid = None
+        try:
+            if isinstance(file_path_or_doc_id, uuid.UUID):
+                is_uuid = True
+                doc_uuid = file_path_or_doc_id
+            elif isinstance(file_path_or_doc_id, str):
+                doc_uuid = uuid.UUID(file_path_or_doc_id.strip())
+                is_uuid = True
+        except (ValueError, AttributeError):
+            is_uuid = False
+
+        if is_uuid and doc_uuid:
+            from app.core.database import SessionLocal
+            from app.models import Document, ExtractedText
+
+            session = db or SessionLocal()
+            should_close = db is None
+            try:
+                extracted = session.query(ExtractedText).filter(ExtractedText.document_id == doc_uuid).first()
+                if extracted and extracted.content and extracted.content.strip():
+                    return extracted.content
+
+                doc = session.query(Document).filter(Document.id == doc_uuid).first()
+                if doc:
+                    if hasattr(doc, "original_text") and doc.original_text:
+                        return doc.original_text
+                    if hasattr(doc, "extracted_text") and doc.extracted_text:
+                        return doc.extracted_text
+
+                if extracted and extracted.content:
+                    return extracted.content
+            finally:
+                if should_close:
+                    session.close()
+
+        file_path_str = str(file_path_or_doc_id)
+        if os.path.exists(file_path_str):
+            logger.info("Extracting text from file path: %s", file_path_str)
+            text_content, _, _ = self.process_document(file_path_str)
+            return text_content
+
+        return ""

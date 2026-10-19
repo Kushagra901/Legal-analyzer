@@ -2,6 +2,7 @@
 Services package initialization.
 Contains modules for OCR processing, LLM analysis, risk checking, compliance audits, storage, and report generation.
 """
+from app.services.audit_service import AuditService, audit_service
 from app.services.chat_service import ChatService
 from app.services.compliance_service import ComplianceService
 from app.services.deep_extraction_service import DeepExtractionService
@@ -15,6 +16,8 @@ from app.services.risk_service import RiskService
 from app.services.storage_service import StorageService
 
 __all__ = [
+    "AuditService",
+    "audit_service",
     "ChatService",
     "ComplianceService",
     "DeepExtractionService",

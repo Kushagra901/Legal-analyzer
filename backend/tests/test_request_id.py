@@ -4,7 +4,7 @@ Validates generation, propagation, and preservation of X-Request-ID correlation 
 """
 
 import uuid
-from fastapi import Request
+
 from fastapi.testclient import TestClient
 
 from app.main import app

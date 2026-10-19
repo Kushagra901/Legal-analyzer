@@ -3,30 +3,28 @@ Tests to cover app.core.security, app.services.data_quality_service,
 app.services.event_streaming_service, and app.services.lakehouse_service.
 """
 
-from datetime import UTC, datetime, timedelta
-from unittest.mock import MagicMock, patch
 import uuid
+from datetime import timedelta
+from unittest.mock import MagicMock, patch
+
 import pytest
 from jwt import decode
 
 from app.core.config import settings
 from app.core.security import create_access_token
-from app.models.database_models import Clause, Document, RiskFlag
 from app.services.data_quality_service import (
     DataQualityService,
-    QualityCheckResult,
 )
 from app.services.event_streaming_service import (
     DocumentEvent,
-    EventType,
     EventStreamingService,
+    EventType,
 )
 from app.services.lakehouse_service import (
     LakehouseRecord,
     LakehouseService,
     MedallionLayer,
 )
-
 
 # ==============================================================================
 # Security Tests
@@ -309,6 +307,7 @@ def test_lakehouse_pipeline_and_stats():
 
 def test_get_accessible_document_access_control():
     from fastapi import HTTPException
+
     from app.core.auth import get_accessible_document
     from app.models.database_models import User
 
@@ -403,7 +402,7 @@ def test_real_analytics_etl_service():
     assert res["status"] == "success"
 
     db.execute.side_effect = Exception("ETL error")
-    with pytest.raises(Exception):
+    with pytest.raises(Exception, match="ETL error"):
         svc.populate_fact_document_analyses(doc_id)
 
     db.execute.side_effect = None

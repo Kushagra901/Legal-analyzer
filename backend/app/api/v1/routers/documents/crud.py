@@ -127,35 +127,55 @@ def ensure_test_user_exists(db: Session) -> uuid.UUID:
     return test_id
 
 
-async def trigger_n8n_webhook(document_id: str, filename: str, email: str = "") -> None:
+async def trigger_n8n_webhook(
+    document_id: str, filename: str, email: str = "", trace_id: str | None = None
+) -> None:
     """
     Triggers n8n production webhook after successful document upload.
     Sends POST with document_id, filename, and user email.
+    Includes X-Trace-ID and X-Request-ID headers for distributed correlation.
     """
     import httpx
 
     from app.core.config import settings
+    from app.core.tracing import get_trace_id, set_trace_id
+
+    resolved_trace = trace_id or get_trace_id() or str(uuid.uuid4())
+    set_trace_id(resolved_trace)
+
     try:
         async with httpx.AsyncClient() as client:
             payload = {
                 "document_id": document_id,
                 "filename": filename,
-                "email": email
+                "email": email,
             }
             headers = {
                 "X-Webhook-Secret": settings.INTERNAL_SERVICE_TOKEN,
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
+                "X-Trace-ID": resolved_trace,
+                "X-Request-ID": resolved_trace,
             }
             response = await client.post(
                 settings.N8N_WEBHOOK_URL,
                 json=payload,
                 headers=headers,
-                timeout=5.0
+                timeout=5.0,
             )
             response.raise_for_status()
-            logger.info("Successfully triggered n8n webhook for document %s (email: %s)", document_id, email)
+            logger.info(
+                "Successfully triggered n8n webhook for document %s (email: %s)",
+                document_id,
+                email,
+                extra={"document_id": document_id, "trace_id": resolved_trace},
+            )
     except Exception as e:
-        logger.warning("Failed to trigger n8n webhook for document %s: %s", document_id, e)
+        logger.warning(
+            "Failed to trigger n8n webhook for document %s: %s",
+            document_id,
+            e,
+            extra={"document_id": document_id, "trace_id": resolved_trace},
+        )
 
 
 @router.post("/", response_model=UploadResponse)
@@ -276,6 +296,19 @@ async def upload_document(
 
         # 8. Trigger Celery Asynchronous Task or background execution
         doc_id_str = str(db_doc.id)
+        from app.core.tracing import get_trace_id
+        active_trace = get_trace_id() or getattr(request.state, "trace_id", None) or str(uuid.uuid4())
+
+        logger.info(
+            "Document uploaded and queued for processing",
+            extra={
+                "document_id": doc_id_str,
+                "file_name": filename,
+                "file_size_bytes": file_size,
+                "trace_id": active_trace,
+            },
+        )
+
         celery_dispatched = False
         import socket
         try:
@@ -283,14 +316,14 @@ async def upload_document(
             sock = socket.create_connection(("localhost", 6379), timeout=0.1)
             sock.close()
             from app.workers.tasks import analyze_document_task
-            analyze_document_task.delay(doc_id_str)
+            analyze_document_task.delay(doc_id_str, active_trace)
             celery_dispatched = True
         except Exception as celery_err:
             logger.warning("Celery/Redis unavailable (%s), falling back to FastAPI background execution.", celery_err)
 
         if not celery_dispatched:
             from app.workers.tasks import execute_document_analysis
-            background_tasks.add_task(execute_document_analysis, doc_id_str)
+            background_tasks.add_task(execute_document_analysis, doc_id_str, active_trace)
 
         # 9. Trigger n8n webhook in background
         user_email = current_user.email or ""

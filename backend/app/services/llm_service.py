@@ -6,6 +6,7 @@ import json
 import logging
 import re
 import uuid
+from typing import Any
 
 import httpx
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
@@ -265,11 +266,118 @@ class LLMService:
 
         return True
 
-    def analyze_contract(self, text: str) -> dict:
+    def analyze_contract(self, text: str | uuid.UUID, db: Any = None) -> dict:
         """
         3-tier fallback execution chain: Claude API -> Gemini API -> Rule-based parser.
         Extracts key clauses, safety score, risk level, citations, and recommendations.
+        If a document UUID is passed, retrieves document text, executes analysis, persists
+        clauses, risk flags, and document summary/scores to PostgreSQL, and returns the analysis payload.
         """
+        is_uuid = False
+        doc_uuid = None
+        try:
+            if isinstance(text, uuid.UUID):
+                is_uuid = True
+                doc_uuid = text
+            elif isinstance(text, str):
+                clean_str = text.strip()
+                if len(clean_str) in (32, 36) and not (" " in clean_str or "\n" in clean_str):
+                    doc_uuid = uuid.UUID(clean_str)
+                    is_uuid = True
+        except (ValueError, AttributeError):
+            is_uuid = False
+
+        if is_uuid and doc_uuid:
+            from app.core.database import SessionLocal
+            from app.models import Clause, Document, ExtractedText, RiskFlag
+
+            session = db or SessionLocal()
+            should_close = db is None
+            try:
+                doc = session.query(Document).filter(Document.id == doc_uuid).first()
+                extracted_obj = session.query(ExtractedText).filter(ExtractedText.document_id == doc_uuid).first()
+                raw_text = extracted_obj.content if (extracted_obj and extracted_obj.content) else ""
+                if not raw_text and doc:
+                    raw_text = getattr(doc, "original_text", "") or getattr(doc, "extracted_text", "")
+                if not raw_text:
+                    raw_text = "Sample contract text."
+
+                analysis = self.analyze_contract(raw_text)
+
+                if doc:
+                    clauses_db = session.query(Clause).filter(Clause.document_id == doc.id).all()
+                    for c in clauses_db:
+                        session.query(RiskFlag).filter(RiskFlag.clause_id == c.id).delete()
+                    session.query(Clause).filter(Clause.document_id == doc.id).delete()
+                    session.commit()
+
+                    for clause_data in analysis.get("clauses", []):
+                        if not isinstance(clause_data, dict):
+                            continue
+                        db_clause = Clause(
+                            id=uuid.uuid4(),
+                            document_id=doc.id,
+                            clause_type=clause_data.get("clause_type"),
+                            clause_text=clause_data.get("clause_text"),
+                            category=clause_data.get("category", "General"),
+                            confidence_score=float(clause_data.get("confidence_score") or 0.95),
+                        )
+                        session.add(db_clause)
+                        session.flush()
+
+                        severity = clause_data.get("severity", "LOW")
+                        explanation = clause_data.get("explanation", "")
+                        if severity in ("MEDIUM", "HIGH") or explanation:
+                            db_flag = RiskFlag(
+                                id=uuid.uuid4(),
+                                clause_id=db_clause.id,
+                                severity=severity,
+                                explanation=explanation or f"{severity} risk flagged."
+                            )
+                            session.add(db_flag)
+
+                    raw_summary = analysis.get("summary")
+                    summary_text = ""
+                    key_terms_data = analysis.get("key_terms")
+                    if isinstance(raw_summary, dict):
+                        summary_text = str(
+                            raw_summary.get("risk_posture")
+                            or raw_summary.get("text")
+                            or raw_summary.get("summary")
+                            or ""
+                        )
+                        if key_terms_data is None:
+                            key_terms_data = raw_summary.get("key_terms")
+                    elif raw_summary is not None:
+                        summary_text = str(raw_summary)
+                    else:
+                        summary_text = ""
+
+                    doc.summary = summary_text
+                    doc.key_terms = key_terms_data
+                    if analysis.get("document_overview"):
+                        doc.document_overview = analysis.get("document_overview")
+                    if analysis.get("parties"):
+                        doc.parties = analysis.get("parties")
+                    if analysis.get("key_dates"):
+                        doc.key_dates = analysis.get("key_dates")
+                    if analysis.get("missing_sections"):
+                        doc.missing_sections = analysis.get("missing_sections")
+                    if analysis.get("plain_english_summary"):
+                        doc.plain_english_summary = analysis.get("plain_english_summary")
+                    if analysis.get("safety_score") is not None:
+                        doc.safety_score = analysis.get("safety_score")
+                    if analysis.get("risk_level"):
+                        doc.risk_level = analysis.get("risk_level")
+                    doc.status = "analyzed"
+                    doc.error_message = None
+                    session.commit()
+
+                return analysis
+            finally:
+                if should_close:
+                    session.close()
+
         sanitized_text = self._sanitize_input(text)
         doc_hash = uuid.uuid4().hex[:12]
 
@@ -390,9 +498,9 @@ Return strictly a valid JSON object matching the schema.
                 result = OllamaService._generate_json_with_retry(ollama_prompt)
                 if self._is_valid_contract_schema(result):
                     return self._validate_and_calibrate_scores(result, sanitized_text)
-                logger.error("Ollama response missing required schema fields. Falling back to next tier.")
+                logger.error("Ollama response missing required schema fields. Falling back to next tier.", extra={"tier": "ollama"})
             except Exception as e:
-                logger.error(f"Ollama API failed: {e}. Falling back to next tier.")
+                logger.error("Ollama API failed. Falling back to next tier: %s", e, extra={"error": str(e), "tier": "ollama"})
 
         # Tier 1: Claude API
         if self.anthropic_api_key:
@@ -400,9 +508,9 @@ Return strictly a valid JSON object matching the schema.
                 result = self._call_claude(system_instruction, user_content)
                 if self._is_valid_contract_schema(result):
                     return self._validate_and_calibrate_scores(result, sanitized_text)
-                logger.error("Claude response missing required schema fields. Falling back to Gemini.")
+                logger.error("Claude response missing required schema fields. Falling back to Gemini.", extra={"tier": "claude"})
             except Exception as e:
-                logger.error(f"Claude API failed: {e}. Falling back to Gemini.")
+                logger.error("Claude API failed. Falling back to Gemini: %s", e, extra={"error": str(e), "tier": "claude"})
 
         # Tier 2: Gemini API
         effective_gemini_key = self.gemini_api_key or self.api_key
@@ -411,12 +519,12 @@ Return strictly a valid JSON object matching the schema.
                 result = self._call_gemini(system_instruction, user_content, response_schema, effective_gemini_key)
                 if self._is_valid_contract_schema(result):
                     return self._validate_and_calibrate_scores(result, sanitized_text)
-                logger.error("Gemini response missing required schema fields. Falling back to rule-based parser.")
+                logger.error("Gemini response missing required schema fields. Falling back to rule-based parser.", extra={"tier": "gemini"})
             except Exception as e:
-                logger.error(f"Gemini API failed: {e}. Falling back to rule-based parser.")
+                logger.error("Gemini API failed. Falling back to rule-based parser: %s", e, extra={"error": str(e), "tier": "gemini"})
 
         # Tier 3: Rule-based fallback
-        logger.warning("All LLM APIs failed or unconfigured. Executing rule-based fallback.")
+        logger.warning("All LLM APIs failed or unconfigured. Executing rule-based fallback.", extra={"tier": "rule_based"})
         return self._rule_based_fallback(sanitized_text)
 
     def _rule_based_fallback(self, text: str) -> dict:
@@ -710,7 +818,7 @@ Return strictly a valid JSON object with a 'violations' array.
                 if isinstance(result, dict) and "violations" in result and isinstance(result["violations"], list):
                     return result["violations"]
             except Exception as e:
-                logger.error(f"Claude compliance API failed: {e}. Falling back to Gemini.")
+                logger.error("Claude compliance API failed. Falling back to Gemini: %s", e, extra={"error": str(e), "tier": "claude"})
 
         # Tier 2: Gemini API
         effective_gemini_key = self.gemini_api_key or self.api_key
@@ -720,10 +828,10 @@ Return strictly a valid JSON object with a 'violations' array.
                 if isinstance(result, dict) and "violations" in result and isinstance(result["violations"], list):
                     return result["violations"]
             except Exception as e:
-                logger.error(f"Gemini compliance API failed: {e}. Falling back to rule-based checker.")
+                logger.error("Gemini compliance API failed. Falling back to rule-based checker: %s", e, extra={"error": str(e), "tier": "gemini"})
 
         # Tier 3: Rule-based compliance fallback
-        logger.warning("All LLM compliance APIs failed or unconfigured. Executing rule-based fallback.")
+        logger.warning("All LLM compliance APIs failed or unconfigured. Executing rule-based fallback.", extra={"tier": "rule_based"})
         return self._rule_based_compliance_fallback(sanitized_text, rule_set)
 
     def _rule_based_quick_summary_fallback(self, text: str, filename: str = "") -> dict:
@@ -816,7 +924,7 @@ Return strictly a valid JSON object matching the requested schema.
                 if isinstance(result, dict) and "quick_summary" in result:
                     return result
             except Exception as e:
-                logger.error(f"Claude quick summary API failed: {e}. Falling back to Gemini.")
+                logger.error("Claude quick summary API failed. Falling back to Gemini: %s", e, extra={"error": str(e), "tier": "claude"})
 
         # Tier 2: Gemini API
         effective_gemini_key = self.gemini_api_key or self.api_key
@@ -826,7 +934,7 @@ Return strictly a valid JSON object matching the requested schema.
                 if isinstance(result, dict) and "quick_summary" in result:
                     return result
             except Exception as e:
-                logger.error(f"Gemini quick summary API failed: {e}. Falling back to rule-based fallback.")
+                logger.error("Gemini quick summary API failed. Falling back to rule-based fallback: %s", e, extra={"error": str(e), "tier": "gemini"})
 
         # Tier 3: Rule-based fallback
         return self._rule_based_quick_summary_fallback(sanitized_text, filename)

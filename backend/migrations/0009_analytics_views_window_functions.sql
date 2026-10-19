@@ -31,13 +31,29 @@ SELECT
 FROM ClauseCounts;
 
 CREATE OR REPLACE VIEW v_user_activity_metrics AS
-SELECT DISTINCT
-    user_id,
-    COUNT(id) OVER (PARTITION BY user_id) as total_documents,
-    SUM(CASE WHEN risk_level='HIGH' THEN 1 ELSE 0 END) OVER (PARTITION BY user_id) as high_risk_count,
-    FIRST_VALUE(filename) OVER (PARTITION BY user_id ORDER BY uploaded_at DESC) as latest_document,
-    NTILE(4) OVER (ORDER BY COUNT(id) OVER (PARTITION BY user_id)) as activity_quartile
-FROM documents;
+WITH user_agg AS (
+    SELECT
+        user_id,
+        COUNT(id) as total_documents,
+        SUM(CASE WHEN risk_level='HIGH' THEN 1 ELSE 0 END) as high_risk_count
+    FROM documents
+    GROUP BY user_id
+),
+latest_docs AS (
+    SELECT DISTINCT ON (user_id)
+        user_id,
+        filename as latest_document
+    FROM documents
+    ORDER BY user_id, uploaded_at DESC
+)
+SELECT
+    u.user_id,
+    u.total_documents,
+    u.high_risk_count,
+    l.latest_document,
+    NTILE(4) OVER (ORDER BY u.total_documents) as activity_quartile
+FROM user_agg u
+LEFT JOIN latest_docs l ON u.user_id = l.user_id;
 
 CREATE OR REPLACE VIEW v_compliance_violation_cumulative AS
 WITH DailyViolations AS (

@@ -2,7 +2,10 @@
 Compliance Service.
 Performs rules audit checks against company templates and auto-detects rule-sets.
 """
+import json
 import logging
+import uuid
+from typing import Any
 
 from app.services.llm_service import LLMService
 
@@ -39,18 +42,76 @@ class ComplianceService:
         return "standard_nda"
 
 
-    def check_compliance(self, text: str, rule_set: str | None = None) -> dict[str, str | list[str]]:
+    def check_compliance(
+        self,
+        text: str | uuid.UUID,
+        rule_set: str | None = None,
+        db: Any = None
+    ) -> dict[str, Any]:
         """
-        Validates text against configured policies.
-        Performs rule-set compliance checks with LLM 3-tier fallback to local rule-based checking.
+        Validates text or document against configured policies.
+        If a document UUID is passed, auto-detects rule set if not provided,
+        runs compliance audit, persists ComplianceCheck record to PostgreSQL, and returns outcome.
 
         Args:
-            text (str): Contract raw text input.
-            rule_set (str): Target rule-set catalog ID.
+            text: Contract raw text input or document UUID.
+            rule_set: Target rule-set catalog ID.
+            db: Optional active SQLAlchemy session.
 
         Returns:
-            dict[str, str | list[str]]: Compliance audit outcome status and violations.
+            dict[str, Any]: Compliance audit outcome status and violations.
         """
+        is_uuid = False
+        doc_uuid = None
+        try:
+            if isinstance(text, uuid.UUID):
+                is_uuid = True
+                doc_uuid = text
+            elif isinstance(text, str):
+                clean_str = text.strip()
+                if len(clean_str) in (32, 36) and not (" " in clean_str or "\n" in clean_str):
+                    doc_uuid = uuid.UUID(clean_str)
+                    is_uuid = True
+        except (ValueError, AttributeError):
+            is_uuid = False
+
+        if is_uuid and doc_uuid:
+            from app.core.database import SessionLocal
+            from app.models import ComplianceCheck, Document, ExtractedText
+
+            session = db or SessionLocal()
+            should_close = db is None
+            try:
+                doc = session.query(Document).filter(Document.id == doc_uuid).first()
+                extracted_obj = session.query(ExtractedText).filter(ExtractedText.document_id == doc_uuid).first()
+                raw_text = extracted_obj.content if (extracted_obj and extracted_obj.content) else ""
+                if not raw_text and doc:
+                    raw_text = getattr(doc, "original_text", "") or getattr(doc, "extracted_text", "")
+                if not raw_text:
+                    raw_text = "Sample contract text."
+
+                if not rule_set:
+                    rule_set = self.detect_rule_set(raw_text, doc.filename if doc else "")
+
+                res = self.check_compliance(raw_text, rule_set=rule_set)
+                violations = res.get("violations", [])
+
+                if doc:
+                    session.query(ComplianceCheck).filter(ComplianceCheck.document_id == doc.id).delete()
+                    db_compliance = ComplianceCheck(
+                        id=uuid.uuid4(),
+                        document_id=doc.id,
+                        rule_set=rule_set,
+                        result=json.dumps(violations)
+                    )
+                    session.add(db_compliance)
+                    session.commit()
+
+                return res
+            finally:
+                if should_close:
+                    session.close()
+
         rule_set = rule_set or "standard_nda"
         llm_service = LLMService()
 
@@ -58,7 +119,7 @@ class ComplianceService:
         effective_key = llm_service.gemini_api_key or llm_service.api_key or llm_service.anthropic_api_key
         if effective_key:
             try:
-                violations = llm_service.analyze_compliance(text, rule_set)
+                violations = llm_service.analyze_compliance(str(text), rule_set)
                 status = "compliant" if not violations else "non-compliant"
                 return {
                     "rule_set": rule_set,
@@ -71,7 +132,7 @@ class ComplianceService:
                 )
 
         # Local rule-based fallback
-        violations = llm_service._rule_based_compliance_fallback(text, rule_set)
+        violations = llm_service._rule_based_compliance_fallback(str(text), rule_set)
         status = "compliant" if not violations else "non-compliant"
         return {
             "rule_set": rule_set,

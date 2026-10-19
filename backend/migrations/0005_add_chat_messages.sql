@@ -13,5 +13,5 @@ CREATE TABLE IF NOT EXISTS public.chat_messages (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_chat_messages_document ON public.chat_messages(document_id);
-CREATE INDEX idx_chat_messages_conversation ON public.chat_messages(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_document ON public.chat_messages(document_id);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_conversation ON public.chat_messages(conversation_id);

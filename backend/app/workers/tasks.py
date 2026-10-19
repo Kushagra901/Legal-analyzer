@@ -25,17 +25,21 @@ from app.workers.celery_app import celery_app
 logger = logging.getLogger(__name__)
 
 
-def execute_document_analysis(document_id: str):
+def execute_document_analysis(document_id: str, trace_id: str | None = None):
     """
     Core function that performs document analysis, saving clauses, risk flags,
     compliance checks, and legal citations to PostgreSQL.
+    Propagates trace_id across all internal service calls and log entries.
     """
+    from app.core.tracing import get_trace_id, set_trace_id
+
+    resolved_trace = set_trace_id(trace_id or get_trace_id())
     db = SessionLocal()
     try:
         doc_uuid = uuid.UUID(document_id)
         doc = db.query(Document).filter(Document.id == doc_uuid).first()
         if not doc:
-            logger.error("Task error: Document %s not found.", document_id)
+            logger.error("Task error: Document not found", extra={"document_id": document_id, "trace_id": resolved_trace})
             return
 
         doc.status = "processing"
@@ -196,8 +200,8 @@ def execute_document_analysis(document_id: str):
 
 
 @celery_app.task(name="app.workers.tasks.analyze_document_task", bind=True)
-def analyze_document_task(self, document_id: str):
+def analyze_document_task(self, document_id: str, trace_id: str | None = None):
     """
     Celery task wrapper for analyze_document_task.
     """
-    execute_document_analysis(document_id)
+    execute_document_analysis(document_id, trace_id=trace_id)
