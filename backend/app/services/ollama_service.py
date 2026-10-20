@@ -156,7 +156,8 @@ class OllamaService:
         format_json: bool = True,
         base_url: str | None = None,
         model: str | None = None,
-        timeout: float = 60.0
+        timeout: float = 120.0,
+        options: dict[str, Any] | None = None
     ) -> str:
         """
         Call Ollama's /api/generate endpoint.
@@ -166,7 +167,8 @@ class OllamaService:
             format_json (bool): Whether to enforce 'format': 'json'.
             base_url (str | None): Optional base URL override.
             model (str | None): Optional model override.
-            timeout (float): Request timeout in seconds.
+            timeout (float): Request timeout in seconds (minimum 120s to allow model cold-loading).
+            options (dict[str, Any] | None): Optional parameter dictionary (num_ctx=4096 by default).
 
         Returns:
             str: Raw response text emitted by the model.
@@ -182,10 +184,16 @@ class OllamaService:
         target_model = model or settings.OLLAMA_MODEL or "qwen3:8b"
         endpoint = f"{url.rstrip('/')}/api/generate"
 
+        payload_options: dict[str, Any] = {"num_ctx": 4096}
+        if options:
+            payload_options.update(options)
+
         payload: dict[str, Any] = {
             "model": target_model,
             "prompt": prompt,
-            "stream": False
+            "stream": False,
+            "options": payload_options,
+            "num_ctx": 4096
         }
         if format_json:
             payload["format"] = "json"
@@ -206,7 +214,9 @@ class OllamaService:
         cls,
         prompt: str,
         base_url: str | None = None,
-        model: str | None = None
+        model: str | None = None,
+        timeout: float = 120.0,
+        options: dict[str, Any] | None = None
     ) -> dict[str, Any]:
         """
         Call Ollama with format='json', validate JSON, and retry once on invalid JSON.
@@ -215,6 +225,8 @@ class OllamaService:
             prompt (str): Prompt instructing model to return JSON.
             base_url (str | None): Optional base URL override.
             model (str | None): Optional model override.
+            timeout (float): Request timeout in seconds (default 120.0s).
+            options (dict[str, Any] | None): Optional options dictionary.
 
         Returns:
             dict[str, Any]: Parsed JSON dictionary.
@@ -223,7 +235,14 @@ class OllamaService:
             ValueError: If both initial attempt and retry fail to return valid JSON.
             ConnectionError: If Ollama is unreachable.
         """
-        raw_output = cls._call_generate(prompt=prompt, format_json=True, base_url=base_url, model=model)
+        raw_output = cls._call_generate(
+            prompt=prompt,
+            format_json=True,
+            base_url=base_url,
+            model=model,
+            timeout=timeout,
+            options=options
+        )
 
         # Attempt 1: Clean and parse
         try:
@@ -242,7 +261,14 @@ class OllamaService:
             "Do not include commentary, explanations, or markdown code fences outside the JSON.\n"
             f"Previous response was:\n{raw_output}"
         )
-        retry_raw = cls._call_generate(prompt=retry_prompt, format_json=True, base_url=base_url, model=model)
+        retry_raw = cls._call_generate(
+            prompt=retry_prompt,
+            format_json=True,
+            base_url=base_url,
+            model=model,
+            timeout=timeout,
+            options=options
+        )
 
         try:
             retry_cleaned = clean_json_string(retry_raw)
@@ -263,7 +289,8 @@ class OllamaService:
         cls,
         document_text: str,
         base_url: str | None = None,
-        model: str | None = None
+        model: str | None = None,
+        timeout: float = 120.0
     ) -> DocumentClassification:
         """
         Classify document category, confidence score, and primary structural indicators.
@@ -272,6 +299,7 @@ class OllamaService:
             document_text (str): Raw document content or excerpt.
             base_url (str | None): Optional base URL.
             model (str | None): Optional model override.
+            timeout (float): Request timeout in seconds (default 120.0s).
 
         Returns:
             DocumentClassification: Structured document classification dictionary.
@@ -288,7 +316,7 @@ class OllamaService:
             f"Document Text:\n{document_text[:6000]}"
         )
 
-        data = cls._generate_json_with_retry(prompt, base_url=base_url, model=model)
+        data = cls._generate_json_with_retry(prompt, base_url=base_url, model=model, timeout=timeout)
         return DocumentClassification(
             document_type=str(data.get("document_type", "Legal Agreement")),
             confidence=float(data.get("confidence", 0.8)),
@@ -304,7 +332,8 @@ class OllamaService:
         cls,
         document_text: str,
         base_url: str | None = None,
-        model: str | None = None
+        model: str | None = None,
+        timeout: float = 120.0
     ) -> ExtractedEntities:
         """
         Extract contracting parties, dates, auto-renewal rules, and core parameters.
@@ -313,6 +342,7 @@ class OllamaService:
             document_text (str): Raw document content.
             base_url (str | None): Optional base URL.
             model (str | None): Optional model override.
+            timeout (float): Request timeout in seconds (default 120.0s).
 
         Returns:
             ExtractedEntities: Typed dictionary matching DealTermsResponse schema.
@@ -334,7 +364,7 @@ class OllamaService:
             f"Document Text:\n{document_text[:8000]}"
         )
 
-        data = cls._generate_json_with_retry(prompt, base_url=base_url, model=model)
+        data = cls._generate_json_with_retry(prompt, base_url=base_url, model=model, timeout=timeout)
         return ExtractedEntities(
             parties=list(data.get("parties", [])),
             effective_date=data.get("effective_date"),
@@ -356,7 +386,8 @@ class OllamaService:
         clause_text: str,
         clause_type: str = "",
         base_url: str | None = None,
-        model: str | None = None
+        model: str | None = None,
+        timeout: float = 120.0
     ) -> ClauseRiskAnalysis:
         """
         Evaluate legal exposure, severity rating, and mitigation recommendations for a clause.
@@ -366,6 +397,7 @@ class OllamaService:
             clause_type (str): Optional clause category label.
             base_url (str | None): Optional base URL.
             model (str | None): Optional model override.
+            timeout (float): Request timeout in seconds (default 120.0s).
 
         Returns:
             ClauseRiskAnalysis: Evaluated risk details and mitigation advice.
@@ -385,7 +417,7 @@ class OllamaService:
             f"Clause Text:\n{clause_text[:4000]}"
         )
 
-        data = cls._generate_json_with_retry(prompt, base_url=base_url, model=model)
+        data = cls._generate_json_with_retry(prompt, base_url=base_url, model=model, timeout=timeout)
         severity = str(data.get("severity", "MEDIUM")).upper()
         if severity not in {"LOW", "MEDIUM", "HIGH"}:
             severity = "MEDIUM"
@@ -408,7 +440,8 @@ class OllamaService:
         document_text: str,
         rule_set: str = "standard_nda",
         base_url: str | None = None,
-        model: str | None = None
+        model: str | None = None,
+        timeout: float = 120.0
     ) -> ComplianceAuditResult:
         """
         Audit document text against compliance standards and required legal provisions.
@@ -418,6 +451,7 @@ class OllamaService:
             rule_set (str): The compliance standard (e.g. 'standard_nda', 'gdpr_privacy').
             base_url (str | None): Optional base URL.
             model (str | None): Optional model override.
+            timeout (float): Request timeout in seconds (default 120.0s).
 
         Returns:
             ComplianceAuditResult: Document compliance audit evaluation.
@@ -437,7 +471,7 @@ class OllamaService:
             f"Document Text:\n{document_text[:8000]}"
         )
 
-        data = cls._generate_json_with_retry(prompt, base_url=base_url, model=model)
+        data = cls._generate_json_with_retry(prompt, base_url=base_url, model=model, timeout=timeout)
         status_val = str(data.get("status", "non-compliant")).lower()
         if "compliant" in status_val and "non" not in status_val:
             clean_status = "compliant"
@@ -465,7 +499,8 @@ class OllamaService:
         cls,
         document_text: str,
         base_url: str | None = None,
-        model: str | None = None
+        model: str | None = None,
+        timeout: float = 120.0
     ) -> str:
         """
         Generate a plain-English, executive-level summary in prose (not JSON).
@@ -474,6 +509,7 @@ class OllamaService:
             document_text (str): Document text to summarize.
             base_url (str | None): Optional base URL.
             model (str | None): Optional model override.
+            timeout (float): Request timeout in seconds (default 120.0s).
 
         Returns:
             str: Professional multi-paragraph prose summary.
@@ -487,4 +523,4 @@ class OllamaService:
             f"Document Content:\n{document_text[:8000]}"
         )
 
-        return cls._call_generate(prompt=prompt, format_json=False, base_url=base_url, model=model).strip()
+        return cls._call_generate(prompt=prompt, format_json=False, base_url=base_url, model=model, timeout=timeout).strip()

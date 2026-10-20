@@ -326,3 +326,194 @@ def test_generate_summary_method():
         # Verify format: json was NOT passed in the payload
         post_kwargs = mock_post.call_args.kwargs.get("json") or mock_post.call_args[1].get("json")
         assert "format" not in post_kwargs
+
+
+# =============================================================================
+# 5. Ollama Timeout & num_ctx Payload Verification Tests
+# =============================================================================
+
+def test_ollama_payload_includes_num_ctx_and_timeout():
+    """
+    Verify that OllamaService calls httpx.Client with at least 120s timeout,
+    and includes num_ctx=4096 in options to prevent VRAM overflow.
+    """
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {"response": json.dumps({"status": "ok"})}
+
+    with patch("httpx.Client") as mock_client_cls:
+        mock_client = MagicMock()
+        mock_client.__enter__.return_value = mock_client
+        mock_client.post.return_value = mock_resp
+        mock_client_cls.return_value = mock_client
+
+        OllamaService._call_generate("Test prompt", base_url="http://localhost:11434")
+
+        # Verify Client initialized with at least 120 seconds
+        assert mock_client_cls.call_args is not None
+        timeout_arg = mock_client_cls.call_args.kwargs.get("timeout")
+        assert timeout_arg >= 120.0
+
+        # Verify payload options contains num_ctx = 4096
+        post_args = mock_client.post.call_args
+        payload = post_args.kwargs.get("json") or post_args[1].get("json")
+        assert payload["options"]["num_ctx"] == 4096
+        assert payload["num_ctx"] == 4096
+
+
+def test_llm_service_execute_ollama_request():
+    """
+    Verify LLMService._execute_ollama_request passes timeout >= 120s and num_ctx=4096.
+    """
+    from app.services.llm_service import LLMService
+    service = LLMService()
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {"response": "{\"status\": \"ok\"}"}
+
+    with patch("httpx.Client") as mock_client_cls:
+        mock_client = MagicMock()
+        mock_client.__enter__.return_value = mock_client
+        mock_client.post.return_value = mock_resp
+        mock_client_cls.return_value = mock_client
+
+        service._execute_ollama_request("Sample prompt")
+
+        timeout_arg = mock_client_cls.call_args.kwargs.get("timeout")
+        assert timeout_arg >= 120.0
+
+        payload = mock_client.post.call_args.kwargs.get("json")
+        assert payload["options"]["num_ctx"] == 4096
+
+
+def test_llm_service_analyze_contract_sends_chunk_text():
+    """
+    Verify LLMService.analyze_contract sends the specific chunk_text to Ollama,
+    rather than embedding the entire document text.
+    """
+    from app.services.llm_service import LLMService
+    service = LLMService()
+
+    full_document = (
+        "Article 1. Preamble and Definitions\nThis is the first long section.\n\n"
+        "Article 2. Confidentiality\nRecipient must keep information confidential.\n\n"
+        "Article 3. Limitation of Liability\nNeither party liable for consequential damages."
+    )
+    specific_chunk = "Article 2. Confidentiality\nRecipient must keep information confidential."
+
+    mock_ollama_data = {
+        "summary": "Ollama analyzed chunk.",
+        "document_overview": "Confidentiality clause overview.",
+        "plain_english_summary": "Recipient keeps secrets safe.",
+        "parties": ["Alpha Corp", "Beta LLC"],
+        "key_dates": {"effective_date": "2025-01-01"},
+        "missing_sections": [],
+        "safety_score": 90,
+        "risk_level": "LOW",
+        "clauses": [{
+            "clause_type": "Confidentiality Obligations",
+            "clause_text": specific_chunk,
+            "severity": "LOW",
+            "explanation": "Standard confidentiality terms.",
+            "category": "Confidentiality & IP",
+            "confidence_score": 0.95
+        }],
+        "citations": [],
+        "recommendations": []
+    }
+
+    with patch.object(OllamaService, "check_health", return_value=True), \
+         patch.object(OllamaService, "_generate_json_with_retry", return_value=mock_ollama_data) as mock_gen:
+        result = service.analyze_contract(full_document, chunk_text=specific_chunk)
+
+        assert result["summary"] == "Ollama analyzed chunk."
+        prompt_arg = mock_gen.call_args[0][0]
+        # Specific chunk MUST be present
+        assert specific_chunk in prompt_arg
+        # Other articles from full document MUST NOT be in Ollama prompt
+        assert "Article 3. Limitation of Liability" not in prompt_arg
+
+
+def test_llm_service_analyze_contract_chunks_full_document_when_chunk_not_provided():
+    """
+    Verify that when chunk_text is not provided, LLMService uses legal_chunker
+    and sends the first chunk rather than the entire multi-article document to Ollama.
+    """
+    from app.services.llm_service import LLMService
+    service = LLMService()
+
+    multi_article_doc = (
+        "Article 1. Preamble and Definitions\nThis is the preamble.\n\n"
+        "Article 2. Scope of Services\nVendor provides development services.\n\n"
+        "Article 3. Governing Law\nGoverned by laws of California."
+    )
+
+    mock_ollama_data = {
+        "summary": "Ollama analyzed chunk 1.",
+        "document_overview": "Preamble overview.",
+        "plain_english_summary": "Defines agreement scope.",
+        "parties": ["Party A", "Party B"],
+        "key_dates": {},
+        "missing_sections": [],
+        "safety_score": 85,
+        "risk_level": "LOW",
+        "clauses": [{
+            "clause_type": "Preamble",
+            "clause_text": "Article 1. Preamble and Definitions",
+            "severity": "LOW",
+            "explanation": "Standard terms.",
+            "category": "General",
+            "confidence_score": 0.90
+        }],
+        "citations": [],
+        "recommendations": []
+    }
+
+    with patch.object(OllamaService, "check_health", return_value=True), \
+         patch.object(OllamaService, "_generate_json_with_retry", return_value=mock_ollama_data) as mock_gen:
+        result = service.analyze_contract(multi_article_doc)
+
+        assert result["summary"] == "Ollama analyzed chunk 1."
+        prompt_arg = mock_gen.call_args[0][0]
+        # First chunk should be present
+        assert "Article 1. Preamble and Definitions" in prompt_arg
+        # Subsequent chunk must NOT be present in Ollama prompt
+        assert "Article 2. Scope of Services" not in prompt_arg
+
+
+def test_llm_service_ollama_timeout_fallback_to_gemini():
+    """
+    Verify that when Ollama raises a connection/read timeout error,
+    it logs and gracefully falls back to Gemini without failing.
+    """
+    from app.services.llm_service import LLMService
+    service = LLMService()
+
+    mock_gemini_data = {
+        "summary": "Gemini analyzed agreement after Ollama timed out.",
+        "document_overview": "Overview from Gemini.",
+        "plain_english_summary": "Plain English summary from Gemini.",
+        "parties": ["Alpha", "Beta"],
+        "key_dates": {"effective_date": "2025-01-01"},
+        "missing_sections": [],
+        "safety_score": 80,
+        "risk_level": "LOW",
+        "clauses": [{
+            "clause_type": "Confidentiality Obligations",
+            "clause_text": "Sample text",
+            "severity": "LOW",
+            "explanation": "Safe terms",
+            "category": "Confidentiality & IP",
+            "confidence_score": 0.95
+        }],
+        "citations": [],
+        "recommendations": []
+    }
+
+    with patch.object(OllamaService, "check_health", return_value=True), \
+         patch.object(OllamaService, "_generate_json_with_retry", side_effect=ConnectionError("Failed to connect to Ollama at http://localhost:11434: timed out")), \
+         patch.object(service, "_call_gemini", return_value=mock_gemini_data):
+        result = service.analyze_contract("Sample contract text")
+        assert result["summary"] == "Gemini analyzed agreement after Ollama timed out."
+
