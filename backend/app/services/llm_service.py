@@ -43,6 +43,8 @@ class LLMService:
         self.gemini_api_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent"
         self.claude_api_url = "https://api.anthropic.com/v1/messages"
         self.claude_model = "claude-3-5-sonnet-20241022"
+        self.ollama_base_url = settings.OLLAMA_BASE_URL or "http://localhost:11434"
+        self.ollama_timeout = 120.0
 
     def _sanitize_input(self, text: str) -> str:
         """
@@ -236,6 +238,36 @@ class LLMService:
                 return json.loads(text_response)
         raise ValueError("Invalid candidates structure in Gemini API response")
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(min=1, max=10),
+        retry=retry_if_exception(_is_retryable_exception),
+        reraise=True,
+    )
+    def _execute_ollama_request(
+        self,
+        prompt: str,
+        base_url: str | None = None,
+        timeout: float = 120.0
+    ) -> dict:
+        """
+        Executes HTTP POST request to Ollama /api/generate endpoint with 120s minimum timeout and num_ctx=4096.
+        """
+        url = base_url or self.ollama_base_url
+        endpoint = f"{url.rstrip('/')}/api/generate"
+        payload = {
+            "model": getattr(settings, "OLLAMA_MODEL", "qwen3:8b") or "qwen3:8b",
+            "prompt": prompt,
+            "stream": False,
+            "format": "json",
+            "options": {"num_ctx": 4096},
+            "num_ctx": 4096,
+        }
+        with httpx.Client(timeout=timeout) as client:
+            response = client.post(endpoint, json=payload)
+            response.raise_for_status()
+            return response.json()
+
     def _is_valid_contract_schema(self, data: dict) -> bool:
         """
         Validate that parsed JSON matches the required contract analysis schema.
@@ -266,7 +298,12 @@ class LLMService:
 
         return True
 
-    def analyze_contract(self, text: str | uuid.UUID, db: Any = None) -> dict:
+    def analyze_contract(
+        self,
+        text: str | uuid.UUID,
+        db: Any = None,
+        chunk_text: str | None = None
+    ) -> dict:
         """
         3-tier fallback execution chain: Claude API -> Gemini API -> Rule-based parser.
         Extracts key clauses, safety score, risk level, citations, and recommendations.
@@ -302,7 +339,7 @@ class LLMService:
                 if not raw_text:
                     raw_text = "Sample contract text."
 
-                analysis = self.analyze_contract(raw_text)
+                analysis = self.analyze_contract(raw_text, chunk_text=chunk_text)
 
                 if doc:
                     clauses_db = session.query(Clause).filter(Clause.document_id == doc.id).all()
@@ -494,8 +531,43 @@ Return strictly a valid JSON object matching the schema.
         from app.services.ollama_service import OllamaService
         if OllamaService.check_health():
             try:
-                ollama_prompt = f"{system_instruction}\n\n{user_content}"
-                result = OllamaService._generate_json_with_retry(ollama_prompt)
+                # Ensure Ollama only receives the specific chunk_text provided by the chunker to prevent VRAM overflow
+                if chunk_text is not None:
+                    target_chunk_text = chunk_text
+                else:
+                    from app.services.legal_chunker import split_legal_clauses
+                    chunks = split_legal_clauses(sanitized_text)
+                    target_chunk_text = chunks[0] if chunks else sanitized_text
+
+                ollama_user_content = f"""
+Please analyze the following document content.
+
+===BEGIN_DOC_{doc_hash}===
+{target_chunk_text}
+===END_DOC_{doc_hash}===
+
+Analyze this text and extract:
+1. document_overview: A concise overview (2-3 sentences) stating the document type, purpose, and general subject matter.
+2. plain_english_summary: A clear explanation in everyday plain English of what the agreement entails and key obligations for a non-lawyer.
+3. summary: Summary of key terms and risk posture.
+4. parties: Array of all identified legal entities or individuals entering the agreement.
+5. key_dates: Object with relevant dates such as effective_date, expiration_date, execution_date, or notice_period (use null or "Not specified" if omitted).
+6. missing_sections: Array of customary legal provisions or standard protections missing from this document (e.g. Dispute Resolution, Data Protection, Force Majeure).
+7. safety_score: An initial safety score from 0 (very unsafe/unilateral) to 100 (fully safe/balanced mutual).
+8. risk_level: The overall risk level (LOW, MEDIUM, or HIGH).
+9. clauses: Array of key extracted clauses. For each clause provide:
+   - clause_type: Specific clause name (e.g. Limitation of Liability, Governing Law & Jurisdiction, Confidentiality Obligations, Indemnification, Termination, Non-Compete).
+   - clause_text: Exact or near-verbatim quote of the clause.
+   - severity: Risk severity level (LOW, MEDIUM, or HIGH).
+   - explanation: Context and rationale for why this clause is standard or risky.
+   - category: Primary legal category (e.g. Confidentiality & IP, Liability & Risk, Dispute Resolution & Jurisdiction, Term & Termination, Restrictive Covenants, Commercial Terms, General & Boilerplate).
+   - confidence_score: Float between 0.0 and 1.0 reflecting extraction certainty.
+10. citations: Legal references/citations (e.g., choice of law guidelines, contract rules).
+11. recommendations: Actionable review recommendations.
+Return strictly a valid JSON object matching the schema.
+"""
+                ollama_prompt = f"{system_instruction}\n\n{ollama_user_content}"
+                result = OllamaService._generate_json_with_retry(ollama_prompt, timeout=self.ollama_timeout)
                 if self._is_valid_contract_schema(result):
                     return self._validate_and_calibrate_scores(result, sanitized_text)
                 logger.error("Ollama response missing required schema fields. Falling back to next tier.", extra={"tier": "ollama"})
