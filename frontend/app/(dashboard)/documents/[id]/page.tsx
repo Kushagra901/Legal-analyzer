@@ -77,9 +77,16 @@ export default function DocumentDetailPage({
   const [activeTab, setActiveTab] = useState<"analysis" | "dealTerms" | "redlines" | "chat">("analysis");
 
   useEffect(() => {
-    async function loadDocument() {
+    let isMounted = true;
+    let pollTimer: NodeJS.Timeout | null = null;
+
+    async function loadDocument(isInitial = false) {
+      if (isInitial) {
+        setLoading(true);
+      }
       try {
         const data = await apiClient.getDocument(docId);
+        if (!isMounted) return;
         setDocument(data);
         if (data.status === "escalated" || data.status === "flagged") {
           setEscalated(true);
@@ -88,6 +95,7 @@ export default function DocumentDetailPage({
         // If summary or overview is not yet generated, trigger quick-summary for instant overview
         if (!data.analysis?.summary || data.analysis.summary === "Summary generation pending." || data.status === "uploaded" || data.status === "processing") {
           apiClient.getQuickSummary(docId).then((quickData) => {
+            if (!isMounted) return;
             if (quickData?.quick_summary) {
               setDocument((prev) => {
                 if (!prev) return prev;
@@ -103,13 +111,32 @@ export default function DocumentDetailPage({
             }
           }).catch((e) => console.error("Quick summary fetch error:", e));
         }
+
+        // Poll every 2 seconds while document is processing
+        if (data.status === "processing" || data.status === "uploaded" || data.status === "pending") {
+          pollTimer = setTimeout(() => {
+            if (isMounted) {
+              loadDocument(false);
+            }
+          }, 2000);
+        }
       } catch (err: any) {
+        if (!isMounted) return;
         setError(err.message || "Failed to load document analysis.");
       } finally {
-        setLoading(false);
+        if (isMounted && isInitial) {
+          setLoading(false);
+        }
       }
     }
-    loadDocument();
+    loadDocument(true);
+
+    return () => {
+      isMounted = false;
+      if (pollTimer) {
+        clearTimeout(pollTimer);
+      }
+    };
   }, [docId]);
 
   const handleEscalate = async () => {
@@ -236,11 +263,15 @@ export default function DocumentDetailPage({
   const citations = analysis.citations || [];
   const compliance = analysis.compliance_checks || [];
   const extractedText =
-    document.original_text ||
     document.extracted_text ||
+    document.original_text ||
     analysis.extracted_text ||
     analysis.original_text ||
-    "Extracted contract text unavailable.";
+    "";
+  const isProcessing =
+    document.status === "processing" ||
+    document.status === "uploaded" ||
+    document.status === "pending";
   const riskLevel = (analysis.risk_level?.toLowerCase() || "neutral") as "low" | "medium" | "high" | "neutral";
 
   const handleSelectSnippet = (snippetText: string) => {
@@ -401,46 +432,64 @@ export default function DocumentDetailPage({
       {activeTab === "analysis" && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
           {/* Left Pane (Pane 1): Document Viewer / Original Text */}
-          <Card className="h-[750px] flex flex-col">
+          <Card className="h-[750px] flex flex-col" data-testid="pane-1-extracted-document">
             <CardHeader className="py-3 px-4 flex flex-row items-center justify-between">
               <CardTitle className="text-sm font-semibold">
                 Pane 1: Extracted Document Text
               </CardTitle>
               <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider font-mono">
-                OCR Parsing Verified
+                {isProcessing && !extractedText ? "Processing OCR..." : "OCR Parsing Verified"}
               </span>
             </CardHeader>
             <CardContent className="flex-1 p-4 overflow-y-auto font-mono text-xs leading-relaxed bg-[var(--bg-page)] space-y-2 border-t border-[var(--border-subtle)]">
-              {extractedText.split("\n").map((line, idx) => {
-                const cleanLine = line.trim().toLowerCase();
-                const cleanSelected = (selectedClauseText || "").trim().toLowerCase();
-                const isSelected = Boolean(
-                  cleanSelected &&
-                  cleanLine.length > 0 &&
-                  (
-                    cleanLine.includes(cleanSelected.slice(0, 30)) ||
-                    cleanSelected.includes(cleanLine)
-                  )
-                );
-                return (
-                  <div
-                    key={idx}
-                    id={`doc-line-${idx}`}
-                    className={`flex items-start space-x-3 p-1 rounded-none transition-colors duration-150 ${
-                      isSelected
-                        ? "bg-[#fef3c7] text-[#92400e] border-l-2 border-[#d97706] font-semibold"
-                        : "hover:bg-[var(--bg-surface)] text-[var(--text-main)]"
-                    }`}
-                  >
-                    <span className="text-[10px] text-[var(--text-muted)] select-none w-8 text-right shrink-0">
-                      {idx + 1}
-                    </span>
-                    <span className="flex-1 whitespace-pre-wrap select-text">
-                      {line}
-                    </span>
+              {isProcessing && !extractedText ? (
+                <div className="py-12 space-y-4 text-center">
+                  <p className="text-xs text-[var(--text-muted)] animate-pulse">
+                    Extracting document text via OCR pipeline...
+                  </p>
+                  <div className="space-y-2 max-w-md mx-auto px-4">
+                    <Skeleton className="h-3 w-full" />
+                    <Skeleton className="h-3 w-5/6 mx-auto" />
+                    <Skeleton className="h-3 w-4/6 mx-auto" />
+                    <Skeleton className="h-3 w-3/4 mx-auto" />
                   </div>
-                );
-              })}
+                </div>
+              ) : extractedText ? (
+                extractedText.split("\n").map((line, idx) => {
+                  const cleanLine = line.trim().toLowerCase();
+                  const cleanSelected = (selectedClauseText || "").trim().toLowerCase();
+                  const isSelected = Boolean(
+                    cleanSelected &&
+                    cleanLine.length > 0 &&
+                    (
+                      cleanLine.includes(cleanSelected.slice(0, 30)) ||
+                      cleanSelected.includes(cleanLine)
+                    )
+                  );
+                  return (
+                    <div
+                      key={idx}
+                      id={`doc-line-${idx}`}
+                      className={`flex items-start space-x-3 p-1 rounded-none transition-colors duration-150 ${
+                        isSelected
+                          ? "bg-[#fef3c7] text-[#92400e] border-l-2 border-[#d97706] font-semibold"
+                          : "hover:bg-[var(--bg-surface)] text-[var(--text-main)]"
+                      }`}
+                    >
+                      <span className="text-[10px] text-[var(--text-muted)] select-none w-8 text-right shrink-0">
+                        {idx + 1}
+                      </span>
+                      <span className="flex-1 whitespace-pre-wrap select-text">
+                        {line}
+                      </span>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="py-12 text-center text-xs text-[var(--text-muted)]">
+                  Extracted contract text unavailable.
+                </div>
+              )}
             </CardContent>
           </Card>
 
