@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.auth import get_accessible_document, get_current_user
 from app.core.database import get_db
-from app.core.limiter import limiter
+from app.core.limiter import is_internal_service_request, limiter
 from app.models import (
     AuditLog,
     ChatMessage,
@@ -36,7 +36,7 @@ router = APIRouter()
 
 
 @router.post("/{document_id}/chat", response_model=ChatResponse)
-@limiter.limit("60/minute")
+@limiter.limit("10/minute", exempt_when=is_internal_service_request)
 def chat_with_document(
     request: Request,
     document_id: str,

@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.core.auth import get_accessible_document, get_current_user
 from app.core.database import get_db
-from app.core.limiter import limiter
+from app.core.limiter import is_internal_service_request, limiter
 from app.models import (
     AuditLog,
     AutomationRun,
@@ -32,6 +32,7 @@ from app.models import (
     ClauseReview,
     ComplianceCheck,
     Document,
+    DocumentChunk,
     ExtractedText,
     LegalReference,
     Report,
@@ -180,7 +181,7 @@ async def trigger_n8n_webhook(
 
 @router.post("/", response_model=UploadResponse)
 @router.post("/upload", response_model=UploadResponse)
-@limiter.limit("10/minute")
+@limiter.limit("5/minute", exempt_when=is_internal_service_request)
 async def upload_document(
     request: Request,
     background_tasks: BackgroundTasks,
@@ -435,6 +436,15 @@ def get_document(
     # Load real extracted text from database
     extracted_text_obj = db.query(ExtractedText).filter(ExtractedText.document_id == doc.id).first()
     original_text = extracted_text_obj.content if extracted_text_obj else ""
+    if not original_text:
+        chunks = (
+            db.query(DocumentChunk)
+            .filter(DocumentChunk.document_id == doc.id)
+            .order_by(DocumentChunk.chunk_index.asc())
+            .all()
+        )
+        if chunks:
+            original_text = "\n\n".join(c.chunk_text for c in chunks)
 
     # Load Clauses with eager-loaded risk flags
     clauses_db = (
@@ -503,6 +513,7 @@ def get_document(
         uploaded_at=doc.uploaded_at.isoformat() if doc.uploaded_at else None,
         error_message=doc.error_message if doc.status == "failed" else None,
         original_text=original_text,
+        extracted_text=original_text,
         analysis=AnalysisDetailResponse(
             safety_score=doc.safety_score if doc.safety_score is not None else 100,
             risk_level=doc.risk_level if doc.risk_level is not None else "LOW",
