@@ -22,6 +22,7 @@ from app.models.database_models import (
     User,
     VectorType,
 )
+from app.models.schemas import ClauseCategory, clause_category
 
 __all__ = [
     "Organization",
@@ -42,5 +43,7 @@ __all__ = [
     "DeepExtraction",
     "GUID",
     "VectorType",
+    "ClauseCategory",
+    "clause_category",
 ]
 

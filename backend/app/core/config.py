@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     ANTHROPIC_API_KEY: str = ""
     OLLAMA_BASE_URL: str = ""
     OLLAMA_MODEL: str = "qwen3:8b"
+    OLLAMA_EMBEDDING_MODEL: str = "nomic-embed-text"
+    EMBEDDING_BATCH_SIZE: int = 5
+    EMBEDDING_BATCH_DELAY_SECONDS: float = 1.0
     SECRET_KEY: str = "placeholder_secret_key_change_me_in_production"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24 hours
