@@ -2,7 +2,82 @@
 Pydantic v2 validation and serialization schemas for API requests and responses.
 """
 
+from enum import StrEnum
+from typing import Any
+
 from pydantic import BaseModel, Field, model_validator
+
+
+class ClauseCategory(StrEnum):
+    """
+    Standard 41 clause categories defined by the CUAD (Contract Understanding Atticus Dataset) taxonomy.
+    """
+    DOCUMENT_NAME = "Document Name"
+    PARTIES = "Parties"
+    AGREEMENT_DATE = "Agreement Date"
+    EFFECTIVE_DATE = "Effective Date"
+    EXPIRATION_DATE = "Expiration Date"
+    RENEWAL_TERM = "Renewal Term"
+    NOTICE_PERIOD_TO_TERMINATE_RENEWAL = "Notice Period To Terminate Renewal"
+    GOVERNING_LAW = "Governing Law"
+    MOST_FAVORED_NATION = "Most Favored Nation"
+    NON_COMPETE = "Non-Compete"
+    EXCLUSIVITY = "Exclusivity"
+    NO_SOLICIT_OF_CUSTOMERS = "No-Solicit Of Customers"
+    NO_SOLICIT_OF_EMPLOYEES = "No-Solicit Of Employees"
+    NON_DISPARAGEMENT = "Non-Disparagement"
+    TERMINATION_FOR_CONVENIENCE = "Termination For Convenience"
+    ROFR_ROFO_ROFN = "Rofr/Rofo/Rofn"
+    CHANGE_OF_CONTROL = "Change Of Control"
+    ANTI_ASSIGNMENT = "Anti-Assignment"
+    REVENUE_PROFIT_SHARING = "Revenue/Profit Sharing"
+    PRICE_RESTRICTIONS = "Price Restrictions"
+    MINIMUM_COMMITMENT = "Minimum Commitment"
+    VOLUME_RESTRICTION = "Volume Restriction"
+    IP_OWNERSHIP_ASSIGNMENT = "Ip Ownership Assignment"
+    JOINTLY_OWNED_PROPERTY = "Jointly Owned Property"
+    LICENSE_GRANT = "License Grant"
+    NON_TRANSFERABLE_LICENSE = "Non-Transferable License"
+    AFFILIATE_LICENSE_LICENSOR = "Affiliate License-Licensor"
+    AFFILIATE_LICENSE_LICENSEE = "Affiliate License-Licensee"
+    UNLIMITED_ALL_YOU_CAN_EAT_LICENSE = "Unlimited/All-You-Can-Eat-License"
+    IRREVOCABLE_OR_PERPETUAL_LICENSE = "Irrevocable Or Perpetual License"
+    SOURCE_CODE_ESCROW = "Source Code Escrow"
+    POST_TERMINATION_SERVICES = "Post-Termination Services"
+    AUDIT_RIGHTS = "Audit Rights"
+    UNCAPPED_LIABILITY = "Uncapped Liability"
+    CAP_ON_LIABILITY = "Cap On Liability"
+    LIQUIDATED_DAMAGES = "Liquidated Damages"
+    WARRANTY_DURATION = "Warranty Duration"
+    INSURANCE = "Insurance"
+    COVENANT_NOT_TO_SUE = "Covenant Not To Sue"
+    THIRD_PARTY_BENEFICIARY = "Third Party Beneficiary"
+    DOUBLE_CAP = "Double Cap"
+
+    @classmethod
+    def from_str(cls, value: str | None) -> "ClauseCategory | None":
+        """
+        Normalize a raw category string or key to a canonical CUAD ClauseCategory member.
+        Handles case insensitivity, underscores, hyphens, and common variations.
+        """
+        if not value or not isinstance(value, str) or not value.strip():
+            return None
+        cleaned = value.strip().lower().replace("_", " ").replace("-", " ")
+        if cleaned in ("notice period", "notice period to terminate renewal"):
+            return cls.NOTICE_PERIOD_TO_TERMINATE_RENEWAL
+        for member in cls:
+            if member.value.lower() == cleaned:
+                return member
+            member_norm = member.value.lower().replace("_", " ").replace("-", " ")
+            if member_norm == cleaned:
+                return member
+            if member.name.lower() == value.strip().lower():
+                return member
+        return None
+
+
+# Module-level alias matching lowercase naming request
+clause_category = ClauseCategory
 
 
 class HealthResponse(BaseModel):
@@ -29,7 +104,26 @@ class ClauseResponse(BaseModel):
     explanation: str = Field(..., description="Plain-English explanation or risk context")
     severity: str = Field(..., description="Risk severity level: LOW, MEDIUM, or HIGH")
     category: str | None = Field(default=None, description="Category classification of the clause")
+    clause_category: ClauseCategory | str | None = Field(
+        default=None, description="CUAD 41 standard clause category classification"
+    )
     confidence_score: float | None = Field(default=None, description="Model confidence score for clause extraction")
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_clause_categories(cls, data: Any) -> Any:
+        """
+        Normalize and synchronize clause_category and category fields.
+        """
+        if isinstance(data, dict):
+            raw = data.get("clause_category") or data.get("category")
+            if raw is not None:
+                matched = ClauseCategory.from_str(str(raw))
+                if matched:
+                    data["clause_category"] = matched
+                    if not data.get("category"):
+                        data["category"] = matched.value
+        return data
 
 
 class AnalysisDetailResponse(BaseModel):
