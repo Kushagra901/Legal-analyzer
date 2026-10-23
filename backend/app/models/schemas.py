@@ -65,6 +65,12 @@ class ClauseCategory(StrEnum):
         cleaned = value.strip().lower().replace("_", " ").replace("-", " ")
         if cleaned in ("notice period", "notice period to terminate renewal"):
             return cls.NOTICE_PERIOD_TO_TERMINATE_RENEWAL
+        if cleaned in ("governing law & jurisdiction", "governing law and jurisdiction", "governing law & jurisdiction."):
+            return cls.GOVERNING_LAW
+        if cleaned in ("anti assignment", "anti assignment clause", "assignment", "change of control and assignment", "assignment and governing law"):
+            return cls.ANTI_ASSIGNMENT
+        if cleaned in ("insurance", "liability and insurance", "commercial general liability insurance"):
+            return cls.INSURANCE
         for member in cls:
             if member.value.lower() == cleaned:
                 return member

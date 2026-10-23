@@ -266,3 +266,120 @@ def test_legal_chunker_class_wrapper():
     class_res = LegalChunker.split(doc)
     assert direct_res == class_res
     assert len(class_res) == 2
+
+
+def test_miscellaneous_header_stays_grouped_with_subsequent_text():
+    """
+    Verify that a 'MISCELLANEOUS' header stays grouped with its subsequent text
+    in the same chunk, solving the 'Lost in the Middle' problem for Anti-Assignment
+    and Insurance clauses.
+    """
+    doc = (
+        "Article 1. Scope of Agreement\n"
+        "This Agreement governs the mutual confidentiality obligations of the parties.\n\n"
+        "MISCELLANEOUS\n"
+        "Neither party may assign this Agreement without prior written consent ('Anti-Assignment'). "
+        "The Provider shall maintain Commercial General Liability insurance of at least $2,000,000 ('Insurance'). "
+        "This Agreement is governed by Delaware law."
+    )
+    chunks = split_legal_clauses(doc)
+    assert len(chunks) == 2
+    assert chunks[0].startswith("Article 1. Scope of Agreement")
+    assert chunks[1].startswith("MISCELLANEOUS")
+    assert "Anti-Assignment" in chunks[1]
+    assert "Insurance" in chunks[1]
+    assert "Delaware law" in chunks[1]
+
+
+def test_miscellaneous_with_numbered_subclauses_stays_grouped():
+    """
+    Verify that when 'MISCELLANEOUS' contains numbered or bulleted sub-clauses,
+    the entire section remains grouped together as a single chunk.
+    """
+    doc = (
+        "MISCELLANEOUS\n"
+        "1. Anti-Assignment: Neither party may assign rights without written approval.\n"
+        "2. Insurance: Provider shall maintain cyber risk and errors & omissions insurance.\n"
+        "3. Governing Law: Governed by the laws of New York."
+    )
+    chunks = split_legal_clauses(doc)
+    assert len(chunks) == 1
+    assert chunks[0].startswith("MISCELLANEOUS")
+    assert "Anti-Assignment" in chunks[0]
+    assert "Insurance" in chunks[0]
+    assert "Governing Law" in chunks[0]
+
+
+def test_general_provisions_header_stays_grouped():
+    """
+    Verify that a 'GENERAL PROVISIONS' header stays grouped with its subsequent text.
+    """
+    doc = (
+        "SECTION 1. DEFINITIONS\n"
+        "Terms used herein shall have their customary defined legal meanings.\n\n"
+        "GENERAL PROVISIONS\n"
+        "Neither party shall assign this Agreement without consent. "
+        "Each party covenants to maintain adequate insurance coverage."
+    )
+    chunks = split_legal_clauses(doc)
+    assert len(chunks) == 2
+    assert chunks[0].startswith("SECTION 1. DEFINITIONS")
+    assert chunks[1].startswith("GENERAL PROVISIONS")
+    assert "Neither party shall assign" in chunks[1]
+    assert "adequate insurance coverage" in chunks[1]
+
+
+def test_section_not_cut_off_at_800_characters():
+    """
+    Verify that when a legal header is found, the chunker keeps the entire
+    section together as a single chunk rather than cutting it off at 800 characters.
+    """
+    body = "The company and vendor agree to maintain strict confidentiality and mutual protections. " * 18
+    doc = f"MISCELLANEOUS\n{body}"
+    assert 1200 < len(doc) < 2000
+
+    # Even if max_chunk_size=800 is supplied, section with header is kept intact
+    chunks = split_legal_clauses(doc, max_chunk_size=800)
+    assert len(chunks) == 1
+    assert chunks[0].startswith("MISCELLANEOUS")
+    assert len(chunks[0]) == len(doc.strip())
+
+
+def test_massive_section_falls_back_to_splitting():
+    """
+    Verify that if a section is massive (exceeding context limit of 4000 chars),
+    it still falls back to character- and sentence-splitting to avoid exceeding
+    the LLM context window.
+    """
+    body_sentence = "This is a detailed sentence regarding standard miscellaneous terms and covenants. "
+    doc = f"MISCELLANEOUS\n{body_sentence * 60}"
+    assert len(doc) > 4000
+
+    chunks = split_legal_clauses(doc)
+    assert len(chunks) > 1
+    for chunk in chunks:
+        assert len(chunk) <= 4000
+
+
+def test_massive_run_on_sentence_character_splitting():
+    """
+    Verify that a massive continuous run-on sentence without punctuation
+    falls back to character-splitting so it never exceeds the context limit.
+    """
+    massive_sentence = "MISCELLANEOUS\n" + "nowordbreaks" * 400
+    assert len(massive_sentence) > 4000
+
+    chunks = split_legal_clauses(massive_sentence)
+    assert len(chunks) > 1
+    for chunk in chunks:
+        assert len(chunk) <= 4000
+
+
+def test_none_and_edge_case_inputs():
+    """
+    Verify edge case handling for None, empty string, and whitespace.
+    """
+    assert split_legal_clauses(None) == []  # type: ignore[arg-type]
+    assert split_legal_clauses("") == []
+    assert split_legal_clauses("   \t\r\n   ") == []
+
