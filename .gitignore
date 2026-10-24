@@ -36,3 +36,4 @@ Thumbs.db
 
 # --- Report binaries & archives ---
 *.zip
+backend/data/
