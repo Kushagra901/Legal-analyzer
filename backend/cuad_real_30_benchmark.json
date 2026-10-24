@@ -1,0 +1,2542 @@
+{
+  "dataset_source": "CUAD Real",
+  "num_evaluated_contracts": 30,
+  "seed": 42,
+  "elapsed_seconds": 903.16,
+  "aggregate_metrics": {
+    "macro_precision": 0.6721,
+    "macro_recall": 0.5086,
+    "macro_f1": 0.5354,
+    "micro_precision": 0.8357,
+    "micro_recall": 0.5801,
+    "micro_f1": 0.6848
+  },
+  "per_category_metrics": {
+    "Document Name": {
+      "category": "Document Name",
+      "ground_truth_count": 30,
+      "predicted_count": 30,
+      "true_positives": 30,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "tier": "STRONG (High F1)"
+    },
+    "Parties": {
+      "category": "Parties",
+      "ground_truth_count": 30,
+      "predicted_count": 30,
+      "true_positives": 30,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "tier": "STRONG (High F1)"
+    },
+    "Agreement Date": {
+      "category": "Agreement Date",
+      "ground_truth_count": 28,
+      "predicted_count": 29,
+      "true_positives": 27,
+      "false_positives": 2,
+      "false_negatives": 1,
+      "precision": 0.931,
+      "recall": 0.9643,
+      "f1_score": 0.9474,
+      "tier": "STRONG (High F1)"
+    },
+    "Effective Date": {
+      "category": "Effective Date",
+      "ground_truth_count": 24,
+      "predicted_count": 26,
+      "true_positives": 22,
+      "false_positives": 4,
+      "false_negatives": 2,
+      "precision": 0.8462,
+      "recall": 0.9167,
+      "f1_score": 0.88,
+      "tier": "STRONG (High F1)"
+    },
+    "Expiration Date": {
+      "category": "Expiration Date",
+      "ground_truth_count": 26,
+      "predicted_count": 11,
+      "true_positives": 11,
+      "false_positives": 0,
+      "false_negatives": 15,
+      "precision": 1.0,
+      "recall": 0.4231,
+      "f1_score": 0.5946,
+      "tier": "MODERATE (Fair)"
+    },
+    "Renewal Term": {
+      "category": "Renewal Term",
+      "ground_truth_count": 13,
+      "predicted_count": 0,
+      "true_positives": 0,
+      "false_positives": 0,
+      "false_negatives": 13,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1_score": 0.0,
+      "tier": "LOW (Missed)"
+    },
+    "Notice Period To Terminate Renewal": {
+      "category": "Notice Period To Terminate Renewal",
+      "ground_truth_count": 9,
+      "predicted_count": 26,
+      "true_positives": 9,
+      "false_positives": 17,
+      "false_negatives": 0,
+      "precision": 0.3462,
+      "recall": 1.0,
+      "f1_score": 0.5143,
+      "tier": "MODERATE (Fair)"
+    },
+    "Governing Law": {
+      "category": "Governing Law",
+      "ground_truth_count": 25,
+      "predicted_count": 25,
+      "true_positives": 25,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "tier": "STRONG (High F1)"
+    },
+    "Most Favored Nation": {
+      "category": "Most Favored Nation",
+      "ground_truth_count": 1,
+      "predicted_count": 0,
+      "true_positives": 0,
+      "false_positives": 0,
+      "false_negatives": 1,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1_score": 0.0,
+      "tier": "LOW (Missed)"
+    },
+    "Non-Compete": {
+      "category": "Non-Compete",
+      "ground_truth_count": 13,
+      "predicted_count": 6,
+      "true_positives": 5,
+      "false_positives": 1,
+      "false_negatives": 8,
+      "precision": 0.8333,
+      "recall": 0.3846,
+      "f1_score": 0.5263,
+      "tier": "MODERATE (Fair)"
+    },
+    "Exclusivity": {
+      "category": "Exclusivity",
+      "ground_truth_count": 0,
+      "predicted_count": 6,
+      "true_positives": 0,
+      "false_positives": 6,
+      "false_negatives": 0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1_score": 0.0,
+      "tier": "LOW (Missed)"
+    },
+    "No-Solicit Of Customers": {
+      "category": "No-Solicit Of Customers",
+      "ground_truth_count": 2,
+      "predicted_count": 1,
+      "true_positives": 1,
+      "false_positives": 0,
+      "false_negatives": 1,
+      "precision": 1.0,
+      "recall": 0.5,
+      "f1_score": 0.6667,
+      "tier": "MODERATE (Fair)"
+    },
+    "No-Solicit Of Employees": {
+      "category": "No-Solicit Of Employees",
+      "ground_truth_count": 7,
+      "predicted_count": 6,
+      "true_positives": 6,
+      "false_positives": 0,
+      "false_negatives": 1,
+      "precision": 1.0,
+      "recall": 0.8571,
+      "f1_score": 0.9231,
+      "tier": "STRONG (High F1)"
+    },
+    "Non-Disparagement": {
+      "category": "Non-Disparagement",
+      "ground_truth_count": 5,
+      "predicted_count": 1,
+      "true_positives": 1,
+      "false_positives": 0,
+      "false_negatives": 4,
+      "precision": 1.0,
+      "recall": 0.2,
+      "f1_score": 0.3333,
+      "tier": "LOW (Missed)"
+    },
+    "Termination For Convenience": {
+      "category": "Termination For Convenience",
+      "ground_truth_count": 13,
+      "predicted_count": 11,
+      "true_positives": 6,
+      "false_positives": 5,
+      "false_negatives": 7,
+      "precision": 0.5455,
+      "recall": 0.4615,
+      "f1_score": 0.5,
+      "tier": "MODERATE (Fair)"
+    },
+    "Rofr/Rofo/Rofn": {
+      "category": "Rofr/Rofo/Rofn",
+      "ground_truth_count": 2,
+      "predicted_count": 1,
+      "true_positives": 1,
+      "false_positives": 0,
+      "false_negatives": 1,
+      "precision": 1.0,
+      "recall": 0.5,
+      "f1_score": 0.6667,
+      "tier": "MODERATE (Fair)"
+    },
+    "Change Of Control": {
+      "category": "Change Of Control",
+      "ground_truth_count": 7,
+      "predicted_count": 1,
+      "true_positives": 1,
+      "false_positives": 0,
+      "false_negatives": 6,
+      "precision": 1.0,
+      "recall": 0.1429,
+      "f1_score": 0.25,
+      "tier": "LOW (Missed)"
+    },
+    "Anti-Assignment": {
+      "category": "Anti-Assignment",
+      "ground_truth_count": 24,
+      "predicted_count": 20,
+      "true_positives": 19,
+      "false_positives": 1,
+      "false_negatives": 5,
+      "precision": 0.95,
+      "recall": 0.7917,
+      "f1_score": 0.8636,
+      "tier": "STRONG (High F1)"
+    },
+    "Revenue/Profit Sharing": {
+      "category": "Revenue/Profit Sharing",
+      "ground_truth_count": 8,
+      "predicted_count": 1,
+      "true_positives": 1,
+      "false_positives": 0,
+      "false_negatives": 7,
+      "precision": 1.0,
+      "recall": 0.125,
+      "f1_score": 0.2222,
+      "tier": "LOW (Missed)"
+    },
+    "Price Restrictions": {
+      "category": "Price Restrictions",
+      "ground_truth_count": 2,
+      "predicted_count": 0,
+      "true_positives": 0,
+      "false_positives": 0,
+      "false_negatives": 2,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1_score": 0.0,
+      "tier": "LOW (Missed)"
+    },
+    "Minimum Commitment": {
+      "category": "Minimum Commitment",
+      "ground_truth_count": 14,
+      "predicted_count": 5,
+      "true_positives": 4,
+      "false_positives": 1,
+      "false_negatives": 10,
+      "precision": 0.8,
+      "recall": 0.2857,
+      "f1_score": 0.4211,
+      "tier": "MODERATE (Fair)"
+    },
+    "Volume Restriction": {
+      "category": "Volume Restriction",
+      "ground_truth_count": 6,
+      "predicted_count": 0,
+      "true_positives": 0,
+      "false_positives": 0,
+      "false_negatives": 6,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1_score": 0.0,
+      "tier": "LOW (Missed)"
+    },
+    "Ip Ownership Assignment": {
+      "category": "Ip Ownership Assignment",
+      "ground_truth_count": 8,
+      "predicted_count": 6,
+      "true_positives": 3,
+      "false_positives": 3,
+      "false_negatives": 5,
+      "precision": 0.5,
+      "recall": 0.375,
+      "f1_score": 0.4286,
+      "tier": "MODERATE (Fair)"
+    },
+    "Jointly Owned Property": {
+      "category": "Jointly Owned Property",
+      "ground_truth_count": 0,
+      "predicted_count": 0,
+      "true_positives": 0,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "tier": "STRONG (High F1)"
+    },
+    "License Grant": {
+      "category": "License Grant",
+      "ground_truth_count": 16,
+      "predicted_count": 3,
+      "true_positives": 3,
+      "false_positives": 0,
+      "false_negatives": 13,
+      "precision": 1.0,
+      "recall": 0.1875,
+      "f1_score": 0.3158,
+      "tier": "LOW (Missed)"
+    },
+    "Non-Transferable License": {
+      "category": "Non-Transferable License",
+      "ground_truth_count": 11,
+      "predicted_count": 0,
+      "true_positives": 0,
+      "false_positives": 0,
+      "false_negatives": 11,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1_score": 0.0,
+      "tier": "LOW (Missed)"
+    },
+    "Affiliate License-Licensor": {
+      "category": "Affiliate License-Licensor",
+      "ground_truth_count": 0,
+      "predicted_count": 0,
+      "true_positives": 0,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "tier": "STRONG (High F1)"
+    },
+    "Affiliate License-Licensee": {
+      "category": "Affiliate License-Licensee",
+      "ground_truth_count": 0,
+      "predicted_count": 0,
+      "true_positives": 0,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "tier": "STRONG (High F1)"
+    },
+    "Unlimited/All-You-Can-Eat-License": {
+      "category": "Unlimited/All-You-Can-Eat-License",
+      "ground_truth_count": 0,
+      "predicted_count": 0,
+      "true_positives": 0,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "tier": "STRONG (High F1)"
+    },
+    "Irrevocable Or Perpetual License": {
+      "category": "Irrevocable Or Perpetual License",
+      "ground_truth_count": 0,
+      "predicted_count": 0,
+      "true_positives": 0,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "tier": "STRONG (High F1)"
+    },
+    "Source Code Escrow": {
+      "category": "Source Code Escrow",
+      "ground_truth_count": 2,
+      "predicted_count": 2,
+      "true_positives": 2,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "tier": "STRONG (High F1)"
+    },
+    "Post-Termination Services": {
+      "category": "Post-Termination Services",
+      "ground_truth_count": 13,
+      "predicted_count": 0,
+      "true_positives": 0,
+      "false_positives": 0,
+      "false_negatives": 13,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1_score": 0.0,
+      "tier": "LOW (Missed)"
+    },
+    "Audit Rights": {
+      "category": "Audit Rights",
+      "ground_truth_count": 11,
+      "predicted_count": 4,
+      "true_positives": 2,
+      "false_positives": 2,
+      "false_negatives": 9,
+      "precision": 0.5,
+      "recall": 0.1818,
+      "f1_score": 0.2667,
+      "tier": "LOW (Missed)"
+    },
+    "Uncapped Liability": {
+      "category": "Uncapped Liability",
+      "ground_truth_count": 12,
+      "predicted_count": 2,
+      "true_positives": 2,
+      "false_positives": 0,
+      "false_negatives": 10,
+      "precision": 1.0,
+      "recall": 0.1667,
+      "f1_score": 0.2857,
+      "tier": "LOW (Missed)"
+    },
+    "Cap On Liability": {
+      "category": "Cap On Liability",
+      "ground_truth_count": 18,
+      "predicted_count": 18,
+      "true_positives": 16,
+      "false_positives": 2,
+      "false_negatives": 2,
+      "precision": 0.8889,
+      "recall": 0.8889,
+      "f1_score": 0.8889,
+      "tier": "STRONG (High F1)"
+    },
+    "Liquidated Damages": {
+      "category": "Liquidated Damages",
+      "ground_truth_count": 3,
+      "predicted_count": 1,
+      "true_positives": 0,
+      "false_positives": 1,
+      "false_negatives": 3,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1_score": 0.0,
+      "tier": "LOW (Missed)"
+    },
+    "Warranty Duration": {
+      "category": "Warranty Duration",
+      "ground_truth_count": 7,
+      "predicted_count": 0,
+      "true_positives": 0,
+      "false_positives": 0,
+      "false_negatives": 7,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1_score": 0.0,
+      "tier": "LOW (Missed)"
+    },
+    "Insurance": {
+      "category": "Insurance",
+      "ground_truth_count": 11,
+      "predicted_count": 12,
+      "true_positives": 11,
+      "false_positives": 1,
+      "false_negatives": 0,
+      "precision": 0.9167,
+      "recall": 1.0,
+      "f1_score": 0.9565,
+      "tier": "STRONG (High F1)"
+    },
+    "Covenant Not To Sue": {
+      "category": "Covenant Not To Sue",
+      "ground_truth_count": 9,
+      "predicted_count": 0,
+      "true_positives": 0,
+      "false_positives": 0,
+      "false_negatives": 9,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1_score": 0.0,
+      "tier": "LOW (Missed)"
+    },
+    "Third Party Beneficiary": {
+      "category": "Third Party Beneficiary",
+      "ground_truth_count": 2,
+      "predicted_count": 2,
+      "true_positives": 1,
+      "false_positives": 1,
+      "false_negatives": 1,
+      "precision": 0.5,
+      "recall": 0.5,
+      "f1_score": 0.5,
+      "tier": "MODERATE (Fair)"
+    },
+    "Double Cap": {
+      "category": "Double Cap",
+      "ground_truth_count": 0,
+      "predicted_count": 0,
+      "true_positives": 0,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "tier": "STRONG (High F1)"
+    }
+  },
+  "metrics": {
+    "Document Name": {
+      "category": "Document Name",
+      "ground_truth_count": 30,
+      "predicted_count": 30,
+      "true_positives": 30,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "tier": "STRONG (High F1)"
+    },
+    "Parties": {
+      "category": "Parties",
+      "ground_truth_count": 30,
+      "predicted_count": 30,
+      "true_positives": 30,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "tier": "STRONG (High F1)"
+    },
+    "Agreement Date": {
+      "category": "Agreement Date",
+      "ground_truth_count": 28,
+      "predicted_count": 29,
+      "true_positives": 27,
+      "false_positives": 2,
+      "false_negatives": 1,
+      "precision": 0.931,
+      "recall": 0.9643,
+      "f1_score": 0.9474,
+      "tier": "STRONG (High F1)"
+    },
+    "Effective Date": {
+      "category": "Effective Date",
+      "ground_truth_count": 24,
+      "predicted_count": 26,
+      "true_positives": 22,
+      "false_positives": 4,
+      "false_negatives": 2,
+      "precision": 0.8462,
+      "recall": 0.9167,
+      "f1_score": 0.88,
+      "tier": "STRONG (High F1)"
+    },
+    "Expiration Date": {
+      "category": "Expiration Date",
+      "ground_truth_count": 26,
+      "predicted_count": 11,
+      "true_positives": 11,
+      "false_positives": 0,
+      "false_negatives": 15,
+      "precision": 1.0,
+      "recall": 0.4231,
+      "f1_score": 0.5946,
+      "tier": "MODERATE (Fair)"
+    },
+    "Renewal Term": {
+      "category": "Renewal Term",
+      "ground_truth_count": 13,
+      "predicted_count": 0,
+      "true_positives": 0,
+      "false_positives": 0,
+      "false_negatives": 13,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1_score": 0.0,
+      "tier": "LOW (Missed)"
+    },
+    "Notice Period To Terminate Renewal": {
+      "category": "Notice Period To Terminate Renewal",
+      "ground_truth_count": 9,
+      "predicted_count": 26,
+      "true_positives": 9,
+      "false_positives": 17,
+      "false_negatives": 0,
+      "precision": 0.3462,
+      "recall": 1.0,
+      "f1_score": 0.5143,
+      "tier": "MODERATE (Fair)"
+    },
+    "Governing Law": {
+      "category": "Governing Law",
+      "ground_truth_count": 25,
+      "predicted_count": 25,
+      "true_positives": 25,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "tier": "STRONG (High F1)"
+    },
+    "Most Favored Nation": {
+      "category": "Most Favored Nation",
+      "ground_truth_count": 1,
+      "predicted_count": 0,
+      "true_positives": 0,
+      "false_positives": 0,
+      "false_negatives": 1,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1_score": 0.0,
+      "tier": "LOW (Missed)"
+    },
+    "Non-Compete": {
+      "category": "Non-Compete",
+      "ground_truth_count": 13,
+      "predicted_count": 6,
+      "true_positives": 5,
+      "false_positives": 1,
+      "false_negatives": 8,
+      "precision": 0.8333,
+      "recall": 0.3846,
+      "f1_score": 0.5263,
+      "tier": "MODERATE (Fair)"
+    },
+    "Exclusivity": {
+      "category": "Exclusivity",
+      "ground_truth_count": 0,
+      "predicted_count": 6,
+      "true_positives": 0,
+      "false_positives": 6,
+      "false_negatives": 0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1_score": 0.0,
+      "tier": "LOW (Missed)"
+    },
+    "No-Solicit Of Customers": {
+      "category": "No-Solicit Of Customers",
+      "ground_truth_count": 2,
+      "predicted_count": 1,
+      "true_positives": 1,
+      "false_positives": 0,
+      "false_negatives": 1,
+      "precision": 1.0,
+      "recall": 0.5,
+      "f1_score": 0.6667,
+      "tier": "MODERATE (Fair)"
+    },
+    "No-Solicit Of Employees": {
+      "category": "No-Solicit Of Employees",
+      "ground_truth_count": 7,
+      "predicted_count": 6,
+      "true_positives": 6,
+      "false_positives": 0,
+      "false_negatives": 1,
+      "precision": 1.0,
+      "recall": 0.8571,
+      "f1_score": 0.9231,
+      "tier": "STRONG (High F1)"
+    },
+    "Non-Disparagement": {
+      "category": "Non-Disparagement",
+      "ground_truth_count": 5,
+      "predicted_count": 1,
+      "true_positives": 1,
+      "false_positives": 0,
+      "false_negatives": 4,
+      "precision": 1.0,
+      "recall": 0.2,
+      "f1_score": 0.3333,
+      "tier": "LOW (Missed)"
+    },
+    "Termination For Convenience": {
+      "category": "Termination For Convenience",
+      "ground_truth_count": 13,
+      "predicted_count": 11,
+      "true_positives": 6,
+      "false_positives": 5,
+      "false_negatives": 7,
+      "precision": 0.5455,
+      "recall": 0.4615,
+      "f1_score": 0.5,
+      "tier": "MODERATE (Fair)"
+    },
+    "Rofr/Rofo/Rofn": {
+      "category": "Rofr/Rofo/Rofn",
+      "ground_truth_count": 2,
+      "predicted_count": 1,
+      "true_positives": 1,
+      "false_positives": 0,
+      "false_negatives": 1,
+      "precision": 1.0,
+      "recall": 0.5,
+      "f1_score": 0.6667,
+      "tier": "MODERATE (Fair)"
+    },
+    "Change Of Control": {
+      "category": "Change Of Control",
+      "ground_truth_count": 7,
+      "predicted_count": 1,
+      "true_positives": 1,
+      "false_positives": 0,
+      "false_negatives": 6,
+      "precision": 1.0,
+      "recall": 0.1429,
+      "f1_score": 0.25,
+      "tier": "LOW (Missed)"
+    },
+    "Anti-Assignment": {
+      "category": "Anti-Assignment",
+      "ground_truth_count": 24,
+      "predicted_count": 20,
+      "true_positives": 19,
+      "false_positives": 1,
+      "false_negatives": 5,
+      "precision": 0.95,
+      "recall": 0.7917,
+      "f1_score": 0.8636,
+      "tier": "STRONG (High F1)"
+    },
+    "Revenue/Profit Sharing": {
+      "category": "Revenue/Profit Sharing",
+      "ground_truth_count": 8,
+      "predicted_count": 1,
+      "true_positives": 1,
+      "false_positives": 0,
+      "false_negatives": 7,
+      "precision": 1.0,
+      "recall": 0.125,
+      "f1_score": 0.2222,
+      "tier": "LOW (Missed)"
+    },
+    "Price Restrictions": {
+      "category": "Price Restrictions",
+      "ground_truth_count": 2,
+      "predicted_count": 0,
+      "true_positives": 0,
+      "false_positives": 0,
+      "false_negatives": 2,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1_score": 0.0,
+      "tier": "LOW (Missed)"
+    },
+    "Minimum Commitment": {
+      "category": "Minimum Commitment",
+      "ground_truth_count": 14,
+      "predicted_count": 5,
+      "true_positives": 4,
+      "false_positives": 1,
+      "false_negatives": 10,
+      "precision": 0.8,
+      "recall": 0.2857,
+      "f1_score": 0.4211,
+      "tier": "MODERATE (Fair)"
+    },
+    "Volume Restriction": {
+      "category": "Volume Restriction",
+      "ground_truth_count": 6,
+      "predicted_count": 0,
+      "true_positives": 0,
+      "false_positives": 0,
+      "false_negatives": 6,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1_score": 0.0,
+      "tier": "LOW (Missed)"
+    },
+    "Ip Ownership Assignment": {
+      "category": "Ip Ownership Assignment",
+      "ground_truth_count": 8,
+      "predicted_count": 6,
+      "true_positives": 3,
+      "false_positives": 3,
+      "false_negatives": 5,
+      "precision": 0.5,
+      "recall": 0.375,
+      "f1_score": 0.4286,
+      "tier": "MODERATE (Fair)"
+    },
+    "Jointly Owned Property": {
+      "category": "Jointly Owned Property",
+      "ground_truth_count": 0,
+      "predicted_count": 0,
+      "true_positives": 0,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "tier": "STRONG (High F1)"
+    },
+    "License Grant": {
+      "category": "License Grant",
+      "ground_truth_count": 16,
+      "predicted_count": 3,
+      "true_positives": 3,
+      "false_positives": 0,
+      "false_negatives": 13,
+      "precision": 1.0,
+      "recall": 0.1875,
+      "f1_score": 0.3158,
+      "tier": "LOW (Missed)"
+    },
+    "Non-Transferable License": {
+      "category": "Non-Transferable License",
+      "ground_truth_count": 11,
+      "predicted_count": 0,
+      "true_positives": 0,
+      "false_positives": 0,
+      "false_negatives": 11,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1_score": 0.0,
+      "tier": "LOW (Missed)"
+    },
+    "Affiliate License-Licensor": {
+      "category": "Affiliate License-Licensor",
+      "ground_truth_count": 0,
+      "predicted_count": 0,
+      "true_positives": 0,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "tier": "STRONG (High F1)"
+    },
+    "Affiliate License-Licensee": {
+      "category": "Affiliate License-Licensee",
+      "ground_truth_count": 0,
+      "predicted_count": 0,
+      "true_positives": 0,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "tier": "STRONG (High F1)"
+    },
+    "Unlimited/All-You-Can-Eat-License": {
+      "category": "Unlimited/All-You-Can-Eat-License",
+      "ground_truth_count": 0,
+      "predicted_count": 0,
+      "true_positives": 0,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "tier": "STRONG (High F1)"
+    },
+    "Irrevocable Or Perpetual License": {
+      "category": "Irrevocable Or Perpetual License",
+      "ground_truth_count": 0,
+      "predicted_count": 0,
+      "true_positives": 0,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "tier": "STRONG (High F1)"
+    },
+    "Source Code Escrow": {
+      "category": "Source Code Escrow",
+      "ground_truth_count": 2,
+      "predicted_count": 2,
+      "true_positives": 2,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "tier": "STRONG (High F1)"
+    },
+    "Post-Termination Services": {
+      "category": "Post-Termination Services",
+      "ground_truth_count": 13,
+      "predicted_count": 0,
+      "true_positives": 0,
+      "false_positives": 0,
+      "false_negatives": 13,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1_score": 0.0,
+      "tier": "LOW (Missed)"
+    },
+    "Audit Rights": {
+      "category": "Audit Rights",
+      "ground_truth_count": 11,
+      "predicted_count": 4,
+      "true_positives": 2,
+      "false_positives": 2,
+      "false_negatives": 9,
+      "precision": 0.5,
+      "recall": 0.1818,
+      "f1_score": 0.2667,
+      "tier": "LOW (Missed)"
+    },
+    "Uncapped Liability": {
+      "category": "Uncapped Liability",
+      "ground_truth_count": 12,
+      "predicted_count": 2,
+      "true_positives": 2,
+      "false_positives": 0,
+      "false_negatives": 10,
+      "precision": 1.0,
+      "recall": 0.1667,
+      "f1_score": 0.2857,
+      "tier": "LOW (Missed)"
+    },
+    "Cap On Liability": {
+      "category": "Cap On Liability",
+      "ground_truth_count": 18,
+      "predicted_count": 18,
+      "true_positives": 16,
+      "false_positives": 2,
+      "false_negatives": 2,
+      "precision": 0.8889,
+      "recall": 0.8889,
+      "f1_score": 0.8889,
+      "tier": "STRONG (High F1)"
+    },
+    "Liquidated Damages": {
+      "category": "Liquidated Damages",
+      "ground_truth_count": 3,
+      "predicted_count": 1,
+      "true_positives": 0,
+      "false_positives": 1,
+      "false_negatives": 3,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1_score": 0.0,
+      "tier": "LOW (Missed)"
+    },
+    "Warranty Duration": {
+      "category": "Warranty Duration",
+      "ground_truth_count": 7,
+      "predicted_count": 0,
+      "true_positives": 0,
+      "false_positives": 0,
+      "false_negatives": 7,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1_score": 0.0,
+      "tier": "LOW (Missed)"
+    },
+    "Insurance": {
+      "category": "Insurance",
+      "ground_truth_count": 11,
+      "predicted_count": 12,
+      "true_positives": 11,
+      "false_positives": 1,
+      "false_negatives": 0,
+      "precision": 0.9167,
+      "recall": 1.0,
+      "f1_score": 0.9565,
+      "tier": "STRONG (High F1)"
+    },
+    "Covenant Not To Sue": {
+      "category": "Covenant Not To Sue",
+      "ground_truth_count": 9,
+      "predicted_count": 0,
+      "true_positives": 0,
+      "false_positives": 0,
+      "false_negatives": 9,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1_score": 0.0,
+      "tier": "LOW (Missed)"
+    },
+    "Third Party Beneficiary": {
+      "category": "Third Party Beneficiary",
+      "ground_truth_count": 2,
+      "predicted_count": 2,
+      "true_positives": 1,
+      "false_positives": 1,
+      "false_negatives": 1,
+      "precision": 0.5,
+      "recall": 0.5,
+      "f1_score": 0.5,
+      "tier": "MODERATE (Fair)"
+    },
+    "Double Cap": {
+      "category": "Double Cap",
+      "ground_truth_count": 0,
+      "predicted_count": 0,
+      "true_positives": 0,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "tier": "STRONG (High F1)"
+    }
+  },
+  "per_contract_results": [
+    {
+      "contract": "LejuHoldingsLtd_20140121_DRS (on F-1)_EX-10.26_8473102_EX-10.26_Content License Agreement2",
+      "ground_truth": [
+        "Agreement Date",
+        "Document Name",
+        "Governing Law",
+        "Parties"
+      ],
+      "predicted": [
+        "Agreement Date",
+        "Document Name",
+        "Effective Date",
+        "Governing Law",
+        "Parties",
+        "Termination For Convenience"
+      ],
+      "true_positives": [
+        "Agreement Date",
+        "Document Name",
+        "Governing Law",
+        "Parties"
+      ],
+      "false_negatives": [],
+      "false_positives": [
+        "Effective Date",
+        "Termination For Convenience"
+      ]
+    },
+    {
+      "contract": "WORLDWIDESTRATEGIESINC_11_02_2005-EX-10-RESELLER AGREEMENT",
+      "ground_truth": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Cap On Liability",
+        "Covenant Not To Sue",
+        "Document Name",
+        "Effective Date",
+        "Expiration Date",
+        "Governing Law",
+        "Insurance",
+        "Ip Ownership Assignment",
+        "License Grant",
+        "Minimum Commitment",
+        "No-Solicit Of Employees",
+        "Non-Compete",
+        "Non-Transferable License",
+        "Parties",
+        "Post-Termination Services",
+        "Termination For Convenience",
+        "Volume Restriction",
+        "Warranty Duration"
+      ],
+      "predicted": [
+        "Agreement Date",
+        "Cap On Liability",
+        "Document Name",
+        "Effective Date",
+        "Governing Law",
+        "Insurance",
+        "No-Solicit Of Employees",
+        "Non-Compete",
+        "Notice Period To Terminate Renewal",
+        "Parties"
+      ],
+      "true_positives": [
+        "Agreement Date",
+        "Cap On Liability",
+        "Document Name",
+        "Effective Date",
+        "Governing Law",
+        "Insurance",
+        "No-Solicit Of Employees",
+        "Non-Compete",
+        "Parties"
+      ],
+      "false_negatives": [
+        "Anti-Assignment",
+        "Covenant Not To Sue",
+        "Expiration Date",
+        "Ip Ownership Assignment",
+        "License Grant",
+        "Minimum Commitment",
+        "Non-Transferable License",
+        "Post-Termination Services",
+        "Termination For Convenience",
+        "Volume Restriction",
+        "Warranty Duration"
+      ],
+      "false_positives": [
+        "Notice Period To Terminate Renewal"
+      ]
+    },
+    {
+      "contract": "DOMINIADVISORTRUST_02_18_2005-EX-99.(H)(2)-SPONSORSHIP AGREEMENT",
+      "ground_truth": [
+        "Agreement Date",
+        "Cap On Liability",
+        "Document Name",
+        "Effective Date",
+        "Expiration Date",
+        "Governing Law",
+        "Parties",
+        "Revenue/Profit Sharing",
+        "Termination For Convenience"
+      ],
+      "predicted": [
+        "Agreement Date",
+        "Cap On Liability",
+        "Document Name",
+        "Effective Date",
+        "Governing Law",
+        "Notice Period To Terminate Renewal",
+        "Parties",
+        "Termination For Convenience"
+      ],
+      "true_positives": [
+        "Agreement Date",
+        "Cap On Liability",
+        "Document Name",
+        "Effective Date",
+        "Governing Law",
+        "Parties",
+        "Termination For Convenience"
+      ],
+      "false_negatives": [
+        "Expiration Date",
+        "Revenue/Profit Sharing"
+      ],
+      "false_positives": [
+        "Notice Period To Terminate Renewal"
+      ]
+    },
+    {
+      "contract": "EUROPEANMICROHOLDINGSINC_03_06_1998-EX-10.6-DISTRIBUTOR AGREEMENT",
+      "ground_truth": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Audit Rights",
+        "Cap On Liability",
+        "Change Of Control",
+        "Covenant Not To Sue",
+        "Document Name",
+        "Effective Date",
+        "Expiration Date",
+        "Governing Law",
+        "License Grant",
+        "Liquidated Damages",
+        "Minimum Commitment",
+        "Non-Transferable License",
+        "Notice Period To Terminate Renewal",
+        "Parties",
+        "Post-Termination Services",
+        "Renewal Term",
+        "Termination For Convenience",
+        "Uncapped Liability",
+        "Warranty Duration"
+      ],
+      "predicted": [
+        "Cap On Liability",
+        "Document Name",
+        "Effective Date",
+        "Expiration Date",
+        "Governing Law",
+        "Insurance",
+        "Ip Ownership Assignment",
+        "Notice Period To Terminate Renewal",
+        "Parties",
+        "Termination For Convenience",
+        "Uncapped Liability"
+      ],
+      "true_positives": [
+        "Cap On Liability",
+        "Document Name",
+        "Effective Date",
+        "Expiration Date",
+        "Governing Law",
+        "Notice Period To Terminate Renewal",
+        "Parties",
+        "Termination For Convenience",
+        "Uncapped Liability"
+      ],
+      "false_negatives": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Audit Rights",
+        "Change Of Control",
+        "Covenant Not To Sue",
+        "License Grant",
+        "Liquidated Damages",
+        "Minimum Commitment",
+        "Non-Transferable License",
+        "Post-Termination Services",
+        "Renewal Term",
+        "Warranty Duration"
+      ],
+      "false_positives": [
+        "Insurance",
+        "Ip Ownership Assignment"
+      ]
+    },
+    {
+      "contract": "InmodeLtd_20190729_F-1A_EX-10.9_11743243_EX-10.9_Manufacturing Agreement",
+      "ground_truth": [
+        "Anti-Assignment",
+        "Audit Rights",
+        "Cap On Liability",
+        "Document Name",
+        "Effective Date",
+        "Expiration Date",
+        "Governing Law",
+        "Insurance",
+        "Minimum Commitment",
+        "No-Solicit Of Employees",
+        "Non-Compete",
+        "Notice Period To Terminate Renewal",
+        "Parties",
+        "Post-Termination Services",
+        "Renewal Term",
+        "Termination For Convenience",
+        "Warranty Duration"
+      ],
+      "predicted": [
+        "Agreement Date",
+        "Cap On Liability",
+        "Document Name",
+        "Effective Date",
+        "Governing Law",
+        "Insurance",
+        "No-Solicit Of Employees",
+        "Notice Period To Terminate Renewal",
+        "Parties",
+        "Termination For Convenience"
+      ],
+      "true_positives": [
+        "Cap On Liability",
+        "Document Name",
+        "Effective Date",
+        "Governing Law",
+        "Insurance",
+        "No-Solicit Of Employees",
+        "Notice Period To Terminate Renewal",
+        "Parties",
+        "Termination For Convenience"
+      ],
+      "false_negatives": [
+        "Anti-Assignment",
+        "Audit Rights",
+        "Expiration Date",
+        "Minimum Commitment",
+        "Non-Compete",
+        "Post-Termination Services",
+        "Renewal Term",
+        "Warranty Duration"
+      ],
+      "false_positives": [
+        "Agreement Date"
+      ]
+    },
+    {
+      "contract": "SLOVAKWIRELESSFINANCECOBV_03_28_2001-EX-4.(B)(II).3-Maintenance and support contract for SICAP(R) modules",
+      "ground_truth": [
+        "Anti-Assignment",
+        "Cap On Liability",
+        "Document Name",
+        "Effective Date",
+        "Expiration Date",
+        "Notice Period To Terminate Renewal",
+        "Parties",
+        "Renewal Term"
+      ],
+      "predicted": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Cap On Liability",
+        "Document Name",
+        "Effective Date",
+        "Expiration Date",
+        "Notice Period To Terminate Renewal",
+        "Parties",
+        "Termination For Convenience"
+      ],
+      "true_positives": [
+        "Anti-Assignment",
+        "Cap On Liability",
+        "Document Name",
+        "Effective Date",
+        "Expiration Date",
+        "Notice Period To Terminate Renewal",
+        "Parties"
+      ],
+      "false_negatives": [
+        "Renewal Term"
+      ],
+      "false_positives": [
+        "Agreement Date",
+        "Termination For Convenience"
+      ]
+    },
+    {
+      "contract": "RgcResourcesInc_20151216_8-K_EX-10.3_9372751_EX-10.3_Franchise Agreement",
+      "ground_truth": [
+        "Agreement Date",
+        "Document Name",
+        "Effective Date",
+        "Expiration Date",
+        "Parties",
+        "Revenue/Profit Sharing"
+      ],
+      "predicted": [
+        "Agreement Date",
+        "Document Name",
+        "Effective Date",
+        "Expiration Date",
+        "Parties",
+        "Revenue/Profit Sharing"
+      ],
+      "true_positives": [
+        "Agreement Date",
+        "Document Name",
+        "Effective Date",
+        "Expiration Date",
+        "Parties",
+        "Revenue/Profit Sharing"
+      ],
+      "false_negatives": [],
+      "false_positives": []
+    },
+    {
+      "contract": "UpjohnInc_20200121_10-12G_EX-2.6_11948692_EX-2.6_Manufacturing Agreement_ Supply Agreement",
+      "ground_truth": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Audit Rights",
+        "Cap On Liability",
+        "Document Name",
+        "Effective Date",
+        "Expiration Date",
+        "Governing Law",
+        "Insurance",
+        "Ip Ownership Assignment",
+        "License Grant",
+        "Minimum Commitment",
+        "No-Solicit Of Employees",
+        "Non-Compete",
+        "Notice Period To Terminate Renewal",
+        "Parties",
+        "Post-Termination Services",
+        "Price Restrictions",
+        "Renewal Term",
+        "Uncapped Liability",
+        "Volume Restriction",
+        "Warranty Duration"
+      ],
+      "predicted": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Audit Rights",
+        "Cap On Liability",
+        "Document Name",
+        "Governing Law",
+        "Insurance",
+        "Notice Period To Terminate Renewal",
+        "Parties"
+      ],
+      "true_positives": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Audit Rights",
+        "Cap On Liability",
+        "Document Name",
+        "Governing Law",
+        "Insurance",
+        "Notice Period To Terminate Renewal",
+        "Parties"
+      ],
+      "false_negatives": [
+        "Effective Date",
+        "Expiration Date",
+        "Ip Ownership Assignment",
+        "License Grant",
+        "Minimum Commitment",
+        "No-Solicit Of Employees",
+        "Non-Compete",
+        "Post-Termination Services",
+        "Price Restrictions",
+        "Renewal Term",
+        "Uncapped Liability",
+        "Volume Restriction",
+        "Warranty Duration"
+      ],
+      "false_positives": []
+    },
+    {
+      "contract": "PANDIONTHERAPEUTICSHOLDCOLLC_05_22_2020-EX-10.17-CONSULTING AGREEMENT",
+      "ground_truth": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Document Name",
+        "Expiration Date",
+        "Governing Law",
+        "Ip Ownership Assignment",
+        "License Grant",
+        "No-Solicit Of Employees",
+        "Notice Period To Terminate Renewal",
+        "Parties",
+        "Renewal Term",
+        "Revenue/Profit Sharing",
+        "Termination For Convenience"
+      ],
+      "predicted": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Document Name",
+        "Effective Date",
+        "Expiration Date",
+        "Governing Law",
+        "Ip Ownership Assignment",
+        "No-Solicit Of Employees",
+        "Non-Compete",
+        "Notice Period To Terminate Renewal",
+        "Parties"
+      ],
+      "true_positives": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Document Name",
+        "Expiration Date",
+        "Governing Law",
+        "Ip Ownership Assignment",
+        "No-Solicit Of Employees",
+        "Notice Period To Terminate Renewal",
+        "Parties"
+      ],
+      "false_negatives": [
+        "License Grant",
+        "Renewal Term",
+        "Revenue/Profit Sharing",
+        "Termination For Convenience"
+      ],
+      "false_positives": [
+        "Effective Date",
+        "Non-Compete"
+      ]
+    },
+    {
+      "contract": "LegacyEducationAllianceInc_20200330_10-K_EX-10.18_12090678_EX-10.18_Development Agreement",
+      "ground_truth": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Audit Rights",
+        "Cap On Liability",
+        "Covenant Not To Sue",
+        "Document Name",
+        "Effective Date",
+        "Expiration Date",
+        "Governing Law",
+        "Insurance",
+        "Ip Ownership Assignment",
+        "License Grant",
+        "Minimum Commitment",
+        "No-Solicit Of Customers",
+        "Non-Compete",
+        "Notice Period To Terminate Renewal",
+        "Parties",
+        "Post-Termination Services",
+        "Renewal Term",
+        "Revenue/Profit Sharing",
+        "Uncapped Liability",
+        "Volume Restriction"
+      ],
+      "predicted": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Document Name",
+        "Effective Date",
+        "Exclusivity",
+        "Governing Law",
+        "Insurance",
+        "Minimum Commitment",
+        "Notice Period To Terminate Renewal",
+        "Parties"
+      ],
+      "true_positives": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Document Name",
+        "Effective Date",
+        "Governing Law",
+        "Insurance",
+        "Minimum Commitment",
+        "Notice Period To Terminate Renewal",
+        "Parties"
+      ],
+      "false_negatives": [
+        "Audit Rights",
+        "Cap On Liability",
+        "Covenant Not To Sue",
+        "Expiration Date",
+        "Ip Ownership Assignment",
+        "License Grant",
+        "No-Solicit Of Customers",
+        "Non-Compete",
+        "Post-Termination Services",
+        "Renewal Term",
+        "Revenue/Profit Sharing",
+        "Uncapped Liability",
+        "Volume Restriction"
+      ],
+      "false_positives": [
+        "Exclusivity"
+      ]
+    },
+    {
+      "contract": "TICKETSCOMINC_06_22_1999-EX-10.22-SPONSORSHIP AGREEMENT",
+      "ground_truth": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Cap On Liability",
+        "Document Name",
+        "Effective Date",
+        "Expiration Date",
+        "Governing Law",
+        "Minimum Commitment",
+        "Parties",
+        "Price Restrictions",
+        "Renewal Term",
+        "Termination For Convenience",
+        "Uncapped Liability"
+      ],
+      "predicted": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Audit Rights",
+        "Cap On Liability",
+        "Document Name",
+        "Effective Date",
+        "Exclusivity",
+        "Expiration Date",
+        "Governing Law",
+        "Minimum Commitment",
+        "Notice Period To Terminate Renewal",
+        "Parties"
+      ],
+      "true_positives": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Cap On Liability",
+        "Document Name",
+        "Effective Date",
+        "Expiration Date",
+        "Governing Law",
+        "Minimum Commitment",
+        "Parties"
+      ],
+      "false_negatives": [
+        "Price Restrictions",
+        "Renewal Term",
+        "Termination For Convenience",
+        "Uncapped Liability"
+      ],
+      "false_positives": [
+        "Audit Rights",
+        "Exclusivity",
+        "Notice Period To Terminate Renewal"
+      ]
+    },
+    {
+      "contract": "ArmstrongFlooringInc_20190107_8-K_EX-10.2_11471795_EX-10.2_Intellectual Property Agreement",
+      "ground_truth": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Covenant Not To Sue",
+        "Document Name",
+        "Effective Date",
+        "Expiration Date",
+        "Governing Law",
+        "Ip Ownership Assignment",
+        "License Grant",
+        "Minimum Commitment",
+        "Non-Disparagement",
+        "Non-Transferable License",
+        "Parties"
+      ],
+      "predicted": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Cap On Liability",
+        "Document Name",
+        "Effective Date",
+        "Governing Law",
+        "Ip Ownership Assignment",
+        "License Grant",
+        "Notice Period To Terminate Renewal",
+        "Parties"
+      ],
+      "true_positives": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Document Name",
+        "Effective Date",
+        "Governing Law",
+        "Ip Ownership Assignment",
+        "License Grant",
+        "Parties"
+      ],
+      "false_negatives": [
+        "Covenant Not To Sue",
+        "Expiration Date",
+        "Minimum Commitment",
+        "Non-Disparagement",
+        "Non-Transferable License"
+      ],
+      "false_positives": [
+        "Cap On Liability",
+        "Notice Period To Terminate Renewal"
+      ]
+    },
+    {
+      "contract": "DIVERSINETCORP_03_01_2012-EX-4-RESELLER AGREEMENT",
+      "ground_truth": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Audit Rights",
+        "Cap On Liability",
+        "Document Name",
+        "Effective Date",
+        "Expiration Date",
+        "Governing Law",
+        "License Grant",
+        "Minimum Commitment",
+        "No-Solicit Of Employees",
+        "Non-Compete",
+        "Non-Transferable License",
+        "Notice Period To Terminate Renewal",
+        "Parties",
+        "Post-Termination Services",
+        "Renewal Term",
+        "Source Code Escrow",
+        "Termination For Convenience",
+        "Uncapped Liability",
+        "Volume Restriction"
+      ],
+      "predicted": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Cap On Liability",
+        "Document Name",
+        "Effective Date",
+        "Governing Law",
+        "Minimum Commitment",
+        "No-Solicit Of Employees",
+        "Notice Period To Terminate Renewal",
+        "Parties",
+        "Source Code Escrow"
+      ],
+      "true_positives": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Cap On Liability",
+        "Document Name",
+        "Effective Date",
+        "Governing Law",
+        "Minimum Commitment",
+        "No-Solicit Of Employees",
+        "Notice Period To Terminate Renewal",
+        "Parties",
+        "Source Code Escrow"
+      ],
+      "false_negatives": [
+        "Audit Rights",
+        "Expiration Date",
+        "License Grant",
+        "Non-Compete",
+        "Non-Transferable License",
+        "Post-Termination Services",
+        "Renewal Term",
+        "Termination For Convenience",
+        "Uncapped Liability",
+        "Volume Restriction"
+      ],
+      "false_positives": []
+    },
+    {
+      "contract": "CHERRYHILLMORTGAGEINVESTMENTCORP_09_26_2013-EX-10.1-Strategic Alliance Agreement",
+      "ground_truth": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Document Name",
+        "Expiration Date",
+        "Governing Law",
+        "Parties"
+      ],
+      "predicted": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Document Name",
+        "Expiration Date",
+        "Governing Law",
+        "Notice Period To Terminate Renewal",
+        "Parties",
+        "Termination For Convenience"
+      ],
+      "true_positives": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Document Name",
+        "Expiration Date",
+        "Governing Law",
+        "Parties"
+      ],
+      "false_negatives": [],
+      "false_positives": [
+        "Notice Period To Terminate Renewal",
+        "Termination For Convenience"
+      ]
+    },
+    {
+      "contract": "EhaveInc_20190515_20-F_EX-4.44_11678816_EX-4.44_License Agreement_ Reseller Agreement",
+      "ground_truth": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Audit Rights",
+        "Cap On Liability",
+        "Change Of Control",
+        "Document Name",
+        "Effective Date",
+        "Expiration Date",
+        "Governing Law",
+        "Insurance",
+        "License Grant",
+        "Liquidated Damages",
+        "Minimum Commitment",
+        "Non-Compete",
+        "Non-Transferable License",
+        "Parties",
+        "Post-Termination Services",
+        "Source Code Escrow",
+        "Termination For Convenience",
+        "Third Party Beneficiary",
+        "Uncapped Liability"
+      ],
+      "predicted": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Cap On Liability",
+        "Document Name",
+        "Effective Date",
+        "Exclusivity",
+        "Governing Law",
+        "Insurance",
+        "Notice Period To Terminate Renewal",
+        "Parties",
+        "Source Code Escrow"
+      ],
+      "true_positives": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Cap On Liability",
+        "Document Name",
+        "Effective Date",
+        "Governing Law",
+        "Insurance",
+        "Parties",
+        "Source Code Escrow"
+      ],
+      "false_negatives": [
+        "Audit Rights",
+        "Change Of Control",
+        "Expiration Date",
+        "License Grant",
+        "Liquidated Damages",
+        "Minimum Commitment",
+        "Non-Compete",
+        "Non-Transferable License",
+        "Post-Termination Services",
+        "Termination For Convenience",
+        "Third Party Beneficiary",
+        "Uncapped Liability"
+      ],
+      "false_positives": [
+        "Exclusivity",
+        "Notice Period To Terminate Renewal"
+      ]
+    },
+    {
+      "contract": "ZogenixInc_20190509_10-Q_EX-10.2_11663313_EX-10.2_Distributor Agreement",
+      "ground_truth": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Audit Rights",
+        "Cap On Liability",
+        "Change Of Control",
+        "Covenant Not To Sue",
+        "Document Name",
+        "Effective Date",
+        "Expiration Date",
+        "Governing Law",
+        "Insurance",
+        "Ip Ownership Assignment",
+        "License Grant",
+        "Non-Compete",
+        "Parties",
+        "Post-Termination Services",
+        "Revenue/Profit Sharing",
+        "Termination For Convenience",
+        "Uncapped Liability"
+      ],
+      "predicted": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Cap On Liability",
+        "Document Name",
+        "Effective Date",
+        "Expiration Date",
+        "Governing Law",
+        "Insurance",
+        "Non-Compete",
+        "Parties"
+      ],
+      "true_positives": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Cap On Liability",
+        "Document Name",
+        "Effective Date",
+        "Expiration Date",
+        "Governing Law",
+        "Insurance",
+        "Non-Compete",
+        "Parties"
+      ],
+      "false_negatives": [
+        "Audit Rights",
+        "Change Of Control",
+        "Covenant Not To Sue",
+        "Ip Ownership Assignment",
+        "License Grant",
+        "Post-Termination Services",
+        "Revenue/Profit Sharing",
+        "Termination For Convenience",
+        "Uncapped Liability"
+      ],
+      "false_positives": []
+    },
+    {
+      "contract": "ReynoldsConsumerProductsInc_20191115_S-1_EX-10.18_11896469_EX-10.18_Supply Agreement",
+      "ground_truth": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Cap On Liability",
+        "Change Of Control",
+        "Document Name",
+        "Effective Date",
+        "Expiration Date",
+        "Governing Law",
+        "Insurance",
+        "Parties",
+        "Uncapped Liability"
+      ],
+      "predicted": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Cap On Liability",
+        "Document Name",
+        "Effective Date",
+        "Governing Law",
+        "Insurance",
+        "Notice Period To Terminate Renewal",
+        "Parties",
+        "Third Party Beneficiary"
+      ],
+      "true_positives": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Cap On Liability",
+        "Document Name",
+        "Effective Date",
+        "Governing Law",
+        "Insurance",
+        "Parties"
+      ],
+      "false_negatives": [
+        "Change Of Control",
+        "Expiration Date",
+        "Uncapped Liability"
+      ],
+      "false_positives": [
+        "Notice Period To Terminate Renewal",
+        "Third Party Beneficiary"
+      ]
+    },
+    {
+      "contract": "ThriventVariableInsuranceAccountB_20190701_N-6_EX-99.D(IV)_11720968_EX-99.D(IV)_Endorsement Agreement",
+      "ground_truth": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Document Name",
+        "Effective Date",
+        "Parties"
+      ],
+      "predicted": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Document Name",
+        "Effective Date",
+        "Minimum Commitment",
+        "Notice Period To Terminate Renewal",
+        "Parties"
+      ],
+      "true_positives": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Document Name",
+        "Effective Date",
+        "Parties"
+      ],
+      "false_negatives": [],
+      "false_positives": [
+        "Minimum Commitment",
+        "Notice Period To Terminate Renewal"
+      ]
+    },
+    {
+      "contract": "Zounds Hearing, Inc. - MANUFACTURING DESIGN MARKETING AGREEMENT",
+      "ground_truth": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Audit Rights",
+        "Cap On Liability",
+        "Change Of Control",
+        "Document Name",
+        "Effective Date",
+        "Expiration Date",
+        "Governing Law",
+        "Liquidated Damages",
+        "No-Solicit Of Employees",
+        "Non-Compete",
+        "Notice Period To Terminate Renewal",
+        "Parties",
+        "Post-Termination Services",
+        "Renewal Term",
+        "Revenue/Profit Sharing",
+        "Warranty Duration"
+      ],
+      "predicted": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Cap On Liability",
+        "Change Of Control",
+        "Document Name",
+        "Effective Date",
+        "Expiration Date",
+        "Governing Law",
+        "Ip Ownership Assignment",
+        "No-Solicit Of Employees",
+        "Notice Period To Terminate Renewal",
+        "Parties"
+      ],
+      "true_positives": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Cap On Liability",
+        "Change Of Control",
+        "Document Name",
+        "Effective Date",
+        "Expiration Date",
+        "Governing Law",
+        "No-Solicit Of Employees",
+        "Notice Period To Terminate Renewal",
+        "Parties"
+      ],
+      "false_negatives": [
+        "Audit Rights",
+        "Liquidated Damages",
+        "Non-Compete",
+        "Post-Termination Services",
+        "Renewal Term",
+        "Revenue/Profit Sharing",
+        "Warranty Duration"
+      ],
+      "false_positives": [
+        "Ip Ownership Assignment"
+      ]
+    },
+    {
+      "contract": "ATMOSENERGYCORP_11_22_2002-EX-10.17-TRANSPORTATION SERVICE AGREEMENT",
+      "ground_truth": [
+        "Agreement Date",
+        "Document Name",
+        "Effective Date",
+        "Expiration Date",
+        "Governing Law",
+        "Minimum Commitment",
+        "Notice Period To Terminate Renewal",
+        "Parties",
+        "Post-Termination Services",
+        "Renewal Term",
+        "Volume Restriction"
+      ],
+      "predicted": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Document Name",
+        "Effective Date",
+        "Governing Law",
+        "Notice Period To Terminate Renewal",
+        "Parties"
+      ],
+      "true_positives": [
+        "Agreement Date",
+        "Document Name",
+        "Effective Date",
+        "Governing Law",
+        "Notice Period To Terminate Renewal",
+        "Parties"
+      ],
+      "false_negatives": [
+        "Expiration Date",
+        "Minimum Commitment",
+        "Post-Termination Services",
+        "Renewal Term",
+        "Volume Restriction"
+      ],
+      "false_positives": [
+        "Anti-Assignment"
+      ]
+    },
+    {
+      "contract": "XLITECHNOLOGIES,INC_12_11_2015-EX-10.1-Sponsorship Agreement",
+      "ground_truth": [
+        "Agreement Date",
+        "Document Name",
+        "Effective Date",
+        "Expiration Date",
+        "Insurance",
+        "License Grant",
+        "Non-Disparagement",
+        "Non-Transferable License",
+        "Parties"
+      ],
+      "predicted": [
+        "Agreement Date",
+        "Cap On Liability",
+        "Document Name",
+        "Effective Date",
+        "Expiration Date",
+        "Insurance",
+        "License Grant",
+        "Non-Disparagement",
+        "Notice Period To Terminate Renewal",
+        "Parties",
+        "Termination For Convenience"
+      ],
+      "true_positives": [
+        "Agreement Date",
+        "Document Name",
+        "Effective Date",
+        "Expiration Date",
+        "Insurance",
+        "License Grant",
+        "Non-Disparagement",
+        "Parties"
+      ],
+      "false_negatives": [
+        "Non-Transferable License"
+      ],
+      "false_positives": [
+        "Cap On Liability",
+        "Notice Period To Terminate Renewal",
+        "Termination For Convenience"
+      ]
+    },
+    {
+      "contract": "RevolutionMedicinesInc_20200117_S-1_EX-10.1_11948417_EX-10.1_Development Agreement",
+      "ground_truth": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Audit Rights",
+        "Cap On Liability",
+        "Change Of Control",
+        "Document Name",
+        "Effective Date",
+        "Expiration Date",
+        "Governing Law",
+        "Insurance",
+        "Ip Ownership Assignment",
+        "License Grant",
+        "Non-Compete",
+        "Non-Transferable License",
+        "Parties",
+        "Post-Termination Services",
+        "Revenue/Profit Sharing",
+        "Rofr/Rofo/Rofn",
+        "Termination For Convenience",
+        "Uncapped Liability",
+        "Volume Restriction"
+      ],
+      "predicted": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Cap On Liability",
+        "Document Name",
+        "Effective Date",
+        "Governing Law",
+        "Insurance",
+        "Notice Period To Terminate Renewal",
+        "Parties",
+        "Termination For Convenience"
+      ],
+      "true_positives": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Cap On Liability",
+        "Document Name",
+        "Effective Date",
+        "Governing Law",
+        "Insurance",
+        "Parties",
+        "Termination For Convenience"
+      ],
+      "false_negatives": [
+        "Audit Rights",
+        "Change Of Control",
+        "Expiration Date",
+        "Ip Ownership Assignment",
+        "License Grant",
+        "Non-Compete",
+        "Non-Transferable License",
+        "Post-Termination Services",
+        "Revenue/Profit Sharing",
+        "Rofr/Rofo/Rofn",
+        "Uncapped Liability",
+        "Volume Restriction"
+      ],
+      "false_positives": [
+        "Notice Period To Terminate Renewal"
+      ]
+    },
+    {
+      "contract": "VITAMINSHOPPECOMINC_09_13_1999-EX-10.26-SPONSORSHIP AGREEMENT",
+      "ground_truth": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Cap On Liability",
+        "Document Name",
+        "Effective Date",
+        "Expiration Date",
+        "Governing Law",
+        "License Grant",
+        "Parties",
+        "Uncapped Liability"
+      ],
+      "predicted": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Audit Rights",
+        "Cap On Liability",
+        "Document Name",
+        "Effective Date",
+        "Exclusivity",
+        "Governing Law",
+        "Notice Period To Terminate Renewal",
+        "Parties"
+      ],
+      "true_positives": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Cap On Liability",
+        "Document Name",
+        "Effective Date",
+        "Governing Law",
+        "Parties"
+      ],
+      "false_negatives": [
+        "Expiration Date",
+        "License Grant",
+        "Uncapped Liability"
+      ],
+      "false_positives": [
+        "Audit Rights",
+        "Exclusivity",
+        "Notice Period To Terminate Renewal"
+      ]
+    },
+    {
+      "contract": "PfHospitalityGroupInc_20150923_10-12G_EX-10.1_9266710_EX-10.1_Franchise Agreement3",
+      "ground_truth": [
+        "Agreement Date",
+        "Document Name",
+        "No-Solicit Of Customers",
+        "No-Solicit Of Employees",
+        "Non-Compete",
+        "Parties",
+        "Third Party Beneficiary"
+      ],
+      "predicted": [
+        "Agreement Date",
+        "Document Name",
+        "Ip Ownership Assignment",
+        "No-Solicit Of Customers",
+        "No-Solicit Of Employees",
+        "Non-Compete",
+        "Parties",
+        "Third Party Beneficiary"
+      ],
+      "true_positives": [
+        "Agreement Date",
+        "Document Name",
+        "No-Solicit Of Customers",
+        "No-Solicit Of Employees",
+        "Non-Compete",
+        "Parties",
+        "Third Party Beneficiary"
+      ],
+      "false_negatives": [],
+      "false_positives": [
+        "Ip Ownership Assignment"
+      ]
+    },
+    {
+      "contract": "GOLDRESOURCECORP_12_11_2008-EX-10.1-STRATEGIC ALLIANCE AGREEMENT",
+      "ground_truth": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Audit Rights",
+        "Document Name",
+        "Governing Law",
+        "Insurance",
+        "Minimum Commitment",
+        "Most Favored Nation",
+        "Parties",
+        "Rofr/Rofo/Rofn"
+      ],
+      "predicted": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Document Name",
+        "Effective Date",
+        "Governing Law",
+        "Insurance",
+        "Notice Period To Terminate Renewal",
+        "Parties",
+        "Rofr/Rofo/Rofn"
+      ],
+      "true_positives": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Document Name",
+        "Governing Law",
+        "Insurance",
+        "Parties",
+        "Rofr/Rofo/Rofn"
+      ],
+      "false_negatives": [
+        "Audit Rights",
+        "Minimum Commitment",
+        "Most Favored Nation"
+      ],
+      "false_positives": [
+        "Effective Date",
+        "Notice Period To Terminate Renewal"
+      ]
+    },
+    {
+      "contract": "PrecheckHealthServicesInc_20200320_8-K_EX-99.2_12070169_EX-99.2_Distributor Agreement",
+      "ground_truth": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Covenant Not To Sue",
+        "Document Name",
+        "Expiration Date",
+        "Governing Law",
+        "Non-Compete",
+        "Parties",
+        "Post-Termination Services",
+        "Termination For Convenience"
+      ],
+      "predicted": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Document Name",
+        "Effective Date",
+        "Expiration Date",
+        "Governing Law",
+        "Non-Compete",
+        "Notice Period To Terminate Renewal",
+        "Parties",
+        "Termination For Convenience"
+      ],
+      "true_positives": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Document Name",
+        "Expiration Date",
+        "Governing Law",
+        "Non-Compete",
+        "Parties",
+        "Termination For Convenience"
+      ],
+      "false_negatives": [
+        "Covenant Not To Sue",
+        "Post-Termination Services"
+      ],
+      "false_positives": [
+        "Effective Date",
+        "Notice Period To Terminate Renewal"
+      ]
+    },
+    {
+      "contract": "NEOMEDIATECHNOLOGIESINC_12_15_2005-EX-16.1-DISTRIBUTOR AGREEMENT",
+      "ground_truth": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Cap On Liability",
+        "Covenant Not To Sue",
+        "Document Name",
+        "Effective Date",
+        "Expiration Date",
+        "Governing Law",
+        "License Grant",
+        "Minimum Commitment",
+        "Non-Disparagement",
+        "Non-Transferable License",
+        "Parties",
+        "Renewal Term",
+        "Warranty Duration"
+      ],
+      "predicted": [
+        "Agreement Date",
+        "Cap On Liability",
+        "Document Name",
+        "Effective Date",
+        "Exclusivity",
+        "Expiration Date",
+        "Governing Law",
+        "Notice Period To Terminate Renewal",
+        "Parties",
+        "Termination For Convenience"
+      ],
+      "true_positives": [
+        "Agreement Date",
+        "Cap On Liability",
+        "Document Name",
+        "Effective Date",
+        "Expiration Date",
+        "Governing Law",
+        "Parties"
+      ],
+      "false_negatives": [
+        "Anti-Assignment",
+        "Covenant Not To Sue",
+        "License Grant",
+        "Minimum Commitment",
+        "Non-Disparagement",
+        "Non-Transferable License",
+        "Renewal Term",
+        "Warranty Duration"
+      ],
+      "false_positives": [
+        "Exclusivity",
+        "Notice Period To Terminate Renewal",
+        "Termination For Convenience"
+      ]
+    },
+    {
+      "contract": "ARMSTRONGFLOORING,INC_01_07_2019-EX-10.2-INTELLECTUAL PROPERTY AGREEMENT",
+      "ground_truth": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Covenant Not To Sue",
+        "Document Name",
+        "Effective Date",
+        "Expiration Date",
+        "Governing Law",
+        "Ip Ownership Assignment",
+        "License Grant",
+        "Minimum Commitment",
+        "Non-Disparagement",
+        "Non-Transferable License",
+        "Parties"
+      ],
+      "predicted": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Document Name",
+        "Effective Date",
+        "Governing Law",
+        "Ip Ownership Assignment",
+        "License Grant",
+        "Liquidated Damages",
+        "Notice Period To Terminate Renewal",
+        "Parties"
+      ],
+      "true_positives": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Document Name",
+        "Effective Date",
+        "Governing Law",
+        "Ip Ownership Assignment",
+        "License Grant",
+        "Parties"
+      ],
+      "false_negatives": [
+        "Covenant Not To Sue",
+        "Expiration Date",
+        "Minimum Commitment",
+        "Non-Disparagement",
+        "Non-Transferable License"
+      ],
+      "false_positives": [
+        "Liquidated Damages",
+        "Notice Period To Terminate Renewal"
+      ]
+    },
+    {
+      "contract": "StaarSurgicalCompany_20180801_10-Q_EX-10.37_11289449_EX-10.37_Distributor Agreement",
+      "ground_truth": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Cap On Liability",
+        "Covenant Not To Sue",
+        "Document Name",
+        "Effective Date",
+        "Expiration Date",
+        "Governing Law",
+        "Insurance",
+        "License Grant",
+        "Minimum Commitment",
+        "Non-Compete",
+        "Non-Disparagement",
+        "Non-Transferable License",
+        "Parties",
+        "Post-Termination Services",
+        "Renewal Term",
+        "Termination For Convenience",
+        "Uncapped Liability",
+        "Warranty Duration"
+      ],
+      "predicted": [
+        "Agreement Date",
+        "Cap On Liability",
+        "Document Name",
+        "Exclusivity",
+        "Governing Law",
+        "Insurance",
+        "Minimum Commitment",
+        "Non-Compete",
+        "Notice Period To Terminate Renewal",
+        "Parties"
+      ],
+      "true_positives": [
+        "Agreement Date",
+        "Cap On Liability",
+        "Document Name",
+        "Governing Law",
+        "Insurance",
+        "Minimum Commitment",
+        "Non-Compete",
+        "Parties"
+      ],
+      "false_negatives": [
+        "Anti-Assignment",
+        "Covenant Not To Sue",
+        "Effective Date",
+        "Expiration Date",
+        "License Grant",
+        "Non-Disparagement",
+        "Non-Transferable License",
+        "Post-Termination Services",
+        "Renewal Term",
+        "Termination For Convenience",
+        "Uncapped Liability",
+        "Warranty Duration"
+      ],
+      "false_positives": [
+        "Exclusivity",
+        "Notice Period To Terminate Renewal"
+      ]
+    },
+    {
+      "contract": "RaeSystemsInc_20001114_10-Q_EX-10.57_2631790_EX-10.57_Co-Branding Agreement",
+      "ground_truth": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Audit Rights",
+        "Cap On Liability",
+        "Change Of Control",
+        "Document Name",
+        "Effective Date",
+        "Expiration Date",
+        "Governing Law",
+        "License Grant",
+        "Non-Compete",
+        "Non-Transferable License",
+        "Parties",
+        "Renewal Term",
+        "Revenue/Profit Sharing",
+        "Termination For Convenience",
+        "Uncapped Liability"
+      ],
+      "predicted": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Audit Rights",
+        "Document Name",
+        "Effective Date",
+        "Governing Law",
+        "Notice Period To Terminate Renewal",
+        "Parties",
+        "Termination For Convenience",
+        "Uncapped Liability"
+      ],
+      "true_positives": [
+        "Agreement Date",
+        "Anti-Assignment",
+        "Audit Rights",
+        "Document Name",
+        "Effective Date",
+        "Governing Law",
+        "Parties",
+        "Termination For Convenience",
+        "Uncapped Liability"
+      ],
+      "false_negatives": [
+        "Cap On Liability",
+        "Change Of Control",
+        "Expiration Date",
+        "License Grant",
+        "Non-Compete",
+        "Non-Transferable License",
+        "Renewal Term",
+        "Revenue/Profit Sharing"
+      ],
+      "false_positives": [
+        "Notice Period To Terminate Renewal"
+      ]
+    }
+  ]
+}

@@ -6,27 +6,27 @@ taxonomy to evaluate the Legal Analyzer app's clause extraction accuracy.
 =============================================================================
 HOW TO RUN:
 =============================================================================
-1. Standard execution (in-process via FastAPI TestClient on 5 random contracts):
+1. Standard execution: download real CUAD dataset, evaluate 30 random contracts:
    $ cd d:/legal/backend
-   $ .venv/Scripts/python -m scripts.evaluate_contracts
+   $ .venv/Scripts/python -m scripts.evaluate_contracts --num-contracts 30
 
-2. Force mock CUAD dataset evaluation:
-   $ python scripts/evaluate_contracts.py --mock --num-contracts 5
+2. Force mock CUAD dataset evaluation (quick sanity check):
+   $ .venv/Scripts/python -m scripts.evaluate_contracts --mock --num-contracts 5
 
-3. Using a downloaded CUAD dataset file (e.g. CUAD_v1.json):
-   $ python scripts/evaluate_contracts.py --cuad-path ./data/CUAD_v1.json --num-contracts 5
+3. Using an already-downloaded CUAD dataset file:
+   $ .venv/Scripts/python -m scripts.evaluate_contracts --cuad-path ./data/CUAD_v1.json --num-contracts 30
 
-4. Evaluate against a live running backend server (e.g. http://localhost:8000):
-   $ python scripts/evaluate_contracts.py --api-url http://localhost:8000 --num-contracts 5
+4. Evaluate against a live running backend server:
+   $ .venv/Scripts/python -m scripts.evaluate_contracts --api-url http://localhost:8000 --num-contracts 30
 
 5. Save the evaluation metrics as a JSON report:
-   $ python scripts/evaluate_contracts.py --output-json ./evaluation_results.json
+   $ .venv/Scripts/python -m scripts.evaluate_contracts --output-json ./cuad_real_benchmark.json
 
 Flags:
-  --num-contracts INT   Number of contracts to evaluate (default: 5)
-  --cuad-path PATH      Path to local CUAD_v1.json file
+  --num-contracts INT   Number of contracts to evaluate (default: 30)
+  --cuad-path PATH      Path to local CUAD_v1.json dataset file
   --mock                Force using built-in mock CUAD dataset
-  --download            Attempt to download CUAD dataset from official release
+  --no-download         Skip auto-download if real dataset is missing
   --seed INT            Random seed for contract sampling (default: 42)
   --api-url URL         Remote backend URL; if omitted, evaluates in-process
   --output-json PATH    Optional path to write detailed JSON metrics output
@@ -39,6 +39,7 @@ import logging
 import os
 import random
 import sys
+import time
 import uuid
 from typing import Any, TypedDict
 
@@ -68,6 +69,69 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger("evaluate_contracts")
 
 ALL_41_CUAD_CATEGORIES: list[str] = [c.value for c in ClauseCategory]
+
+# -------------------------------------------------------------------
+# CUAD Question-to-Category Mapping
+# -------------------------------------------------------------------
+# CUAD questions follow the pattern:
+#   "Highlight the parts (if any) of this contract related to the [Category]..."
+# Each question maps to one of the 41 CUAD clause categories.
+# The mapping below handles the exact phrasing used in CUAD_v1.json.
+# -------------------------------------------------------------------
+
+CUAD_QUESTION_CATEGORY_MAP: dict[str, str] = {
+    "document name": "Document Name",
+    "parties": "Parties",
+    "agreement date": "Agreement Date",
+    "effective date": "Effective Date",
+    "expiration date": "Expiration Date",
+    "renewal term": "Renewal Term",
+    "notice period to terminate renewal": "Notice Period To Terminate Renewal",
+    "governing law": "Governing Law",
+    "most favored nation": "Most Favored Nation",
+    "non-compete": "Non-Compete",
+    "exclusivity": "Exclusivity",
+    "no-solicit of customers": "No-Solicit Of Customers",
+    "no-solicit of employees": "No-Solicit Of Employees",
+    "non-disparagement": "Non-Disparagement",
+    "termination for convenience": "Termination For Convenience",
+    "rofr/rofo/rofn": "Rofr/Rofo/Rofn",
+    "right of first refusal": "Rofr/Rofo/Rofn",
+    "rofr/rofn/rofo": "Rofr/Rofo/Rofn",
+    "change of control": "Change Of Control",
+    "anti-assignment": "Anti-Assignment",
+    "revenue/profit sharing": "Revenue/Profit Sharing",
+    "price restrictions": "Price Restrictions",
+    "minimum commitment": "Minimum Commitment",
+    "volume restriction": "Volume Restriction",
+    "ip ownership assignment": "Ip Ownership Assignment",
+    "joint ip ownership": "Jointly Owned Property",
+    "jointly owned property": "Jointly Owned Property",
+    "license grant": "License Grant",
+    "non-transferable license": "Non-Transferable License",
+    "affiliate license-licensor": "Affiliate License-Licensor",
+    "affiliate license-licensee": "Affiliate License-Licensee",
+    "unlimited/all-you-can-eat-license": "Unlimited/All-You-Can-Eat-License",
+    "unlimited/all-you-can-eat license": "Unlimited/All-You-Can-Eat-License",
+    "irrevocable or perpetual license": "Irrevocable Or Perpetual License",
+    "source code escrow": "Source Code Escrow",
+    "post-termination services": "Post-Termination Services",
+    "audit rights": "Audit Rights",
+    "uncapped liability": "Uncapped Liability",
+    "cap on liability": "Cap On Liability",
+    "liquidated damages": "Liquidated Damages",
+    "warranty duration": "Warranty Duration",
+    "insurance": "Insurance",
+    "covenant not to sue": "Covenant Not To Sue",
+    "third party beneficiary": "Third Party Beneficiary",
+    "double cap": "Double Cap",
+    # Additional aliases from CUAD question phrasing variations
+    "competitive restriction exception": "Non-Compete",
+    "exclusive dealing": "Exclusivity",
+    "restriction on operation": "Non-Compete",
+    "indemnification": "Cap On Liability",
+    "license back": "License Grant",
+}
 
 
 class CUADContract(TypedDict):
@@ -295,45 +359,116 @@ MOCK_CUAD_CONTRACTS: list[CUADContract] = [
 ]
 
 
-def download_cuad_dataset(destination_path: str = "./data/CUAD_v1.json") -> str | None:
+def _extract_category_from_cuad_question(question: str, qa_id: str) -> str | None:
     """
-    Attempt to download the CUAD dataset from official public release mirrors.
-    Returns local file path if successful, None otherwise.
-    """
-    os.makedirs(os.path.dirname(destination_path) or ".", exist_ok=True)
-    cuad_urls = [
-        "https://raw.githubusercontent.com/TheAtticusProject/cuad/main/CUAD_v1.json",
-        "https://zenodo.org/record/4595826/files/CUAD_v1.json",
-    ]
+    Map a CUAD SQuAD-format question to its canonical CUAD category name.
 
-    for url in cuad_urls:
-        try:
-            logger.info("Attempting to download CUAD dataset from %s...", url)
-            with httpx.Client(timeout=15.0, follow_redirects=True) as client:
-                resp = client.get(url)
-                if resp.status_code == 200 and len(resp.content) > 10000:
-                    with open(destination_path, "wb") as f:
-                        f.write(resp.content)
-                    logger.info("Successfully downloaded CUAD dataset to %s (%d bytes).", destination_path, len(resp.content))
-                    return destination_path
-        except Exception as e:
-            logger.warning("Download attempt from %s failed: %s", url, e)
+    CUAD questions follow the template:
+      'Highlight the parts (if any) of this contract related to the "[Category]"...'
+
+    Falls back to extracting from the QA id field which often contains the category slug.
+
+    Args:
+        question: The raw question string from CUAD_v1.json.
+        qa_id: The QA entry ID which sometimes encodes the category.
+
+    Returns:
+        The canonical CUAD category string, or None if no match is found.
+    """
+    if not question:
+        return None
+
+    q_lower = question.lower().strip()
+
+    # Strategy 1: Direct lookup against known category names in the question
+    for key, category in CUAD_QUESTION_CATEGORY_MAP.items():
+        if key in q_lower:
+            return category
+
+    # Strategy 2: Extract from quoted text in the question
+    # E.g., 'related to the "Agreement Date"' or 'related to "Governing Law"'
+    import re
+    quoted_match = re.search(r'"([^"]+)"', question)
+    if quoted_match:
+        quoted = quoted_match.group(1).strip().lower()
+        if quoted in CUAD_QUESTION_CATEGORY_MAP:
+            return CUAD_QUESTION_CATEGORY_MAP[quoted]
+        # Try direct match against ClauseCategory values
+        matched = ClauseCategory.from_str(quoted_match.group(1).strip())
+        if matched:
+            return matched.value
+
+    # Strategy 3: Try matching against ClauseCategory.from_str with the full question
+    for cat in ALL_41_CUAD_CATEGORIES:
+        if cat.lower() in q_lower:
+            return cat
+
+    # Strategy 4: Extract from QA ID (format: "ContractName__category_name__qN")
+    if qa_id:
+        id_lower = qa_id.lower()
+        for key, category in CUAD_QUESTION_CATEGORY_MAP.items():
+            # IDs use underscores and hyphens
+            id_key = key.replace(" ", "_").replace("/", "_")
+            if id_key in id_lower:
+                return category
 
     return None
 
 
-def load_cuad_dataset(cuad_path: str | None = None, force_mock: bool = False) -> list[CUADContract]:
+def download_cuad_dataset(destination_path: str = "./data/CUAD_v1.json") -> str | None:
+    """
+    Attempt to download the CUAD dataset from official public release mirrors.
+    Delegates to the dedicated scripts.download_cuad module.
+
+    Args:
+        destination_path: Local file path to save the dataset.
+
+    Returns:
+        Local file path if successful, None otherwise.
+    """
+    try:
+        from scripts.download_cuad import download_cuad_dataset as _download_cuad
+        return _download_cuad(destination_path)
+    except Exception as e:
+        logger.error("Download failed via download_cuad module: %s", e)
+        return None
+
+
+def load_cuad_dataset(
+    cuad_path: str | None = None,
+    force_mock: bool = False,
+    auto_download: bool = True,
+) -> list[CUADContract]:
     """
     Load contracts from either:
-    1. Local CUAD_v1.json file
-    2. Downloaded CUAD dataset
-    3. Built-in mock CUAD dataset
+    1. Local CUAD_v1.json file (real dataset)
+    2. Auto-downloaded CUAD dataset
+    3. Built-in mock CUAD dataset (fallback)
+
+    Args:
+        cuad_path: Explicit path to a local CUAD_v1.json file.
+        force_mock: If True, skip real dataset and use mock contracts.
+        auto_download: If True, attempt to download the dataset if not found locally.
+
+    Returns:
+        List of CUADContract entries parsed from the dataset.
     """
     if force_mock:
-        logger.info("Using built-in high-fidelity mock CUAD dataset (contains contracts across 41 CUAD categories).")
+        logger.info("Using built-in mock CUAD dataset (%d contracts).", len(MOCK_CUAD_CONTRACTS))
         return MOCK_CUAD_CONTRACTS
 
-    if cuad_path and os.path.exists(cuad_path):
+    # Try explicit path first
+    if not cuad_path:
+        cuad_path = os.path.join("data", "CUAD_v1.json")
+
+    if not os.path.exists(cuad_path) and auto_download:
+        logger.info("CUAD dataset not found at %s. Attempting auto-download...", cuad_path)
+        downloaded = download_cuad_dataset(cuad_path)
+        if not downloaded:
+            logger.warning("Auto-download failed. Falling back to mock dataset.")
+            return MOCK_CUAD_CONTRACTS
+
+    if os.path.exists(cuad_path):
         try:
             logger.info("Parsing CUAD dataset from %s...", cuad_path)
             with open(cuad_path, encoding="utf-8") as f:
@@ -341,28 +476,40 @@ def load_cuad_dataset(cuad_path: str | None = None, force_mock: bool = False) ->
 
             contracts: list[CUADContract] = []
             data_items = raw_data.get("data", [])
+
+            category_match_stats = {"matched": 0, "unmatched": 0}
+
             for item in data_items:
-                title = item.get("title", "Contract")
+                title = item.get("title", "Unknown Contract")
+
                 for paragraph in item.get("paragraphs", []):
                     context = paragraph.get("context", "")
+                    if not context or len(context.strip()) < 50:
+                        continue
+
                     gt_categories: set[str] = set()
                     annotations_map: dict[str, list[str]] = {}
 
                     for qa in paragraph.get("qas", []):
                         answers = qa.get("answers", [])
-                        if answers and not qa.get("is_impossible", False):
-                            # Extract category name from question or id
+                        is_impossible = qa.get("is_impossible", True)
+
+                        # A category is present if there are answers and it's not impossible
+                        if answers and not is_impossible:
                             q_text = qa.get("question", "")
-                            matched_cat = None
-                            for cat in ALL_41_CUAD_CATEGORIES:
-                                if cat.lower() in q_text.lower():
-                                    matched_cat = cat
-                                    break
+                            qa_id = qa.get("id", "")
+
+                            matched_cat = _extract_category_from_cuad_question(q_text, qa_id)
                             if matched_cat:
                                 gt_categories.add(matched_cat)
-                                annotations_map[matched_cat] = [a.get("text", "") for a in answers]
+                                annotations_map[matched_cat] = [
+                                    a.get("text", "") for a in answers if a.get("text")
+                                ]
+                                category_match_stats["matched"] += 1
+                            else:
+                                category_match_stats["unmatched"] += 1
 
-                    if context:
+                    if context and gt_categories:
                         contracts.append({
                             "title": title,
                             "text": context,
@@ -371,12 +518,19 @@ def load_cuad_dataset(cuad_path: str | None = None, force_mock: bool = False) ->
                         })
 
             if contracts:
-                logger.info("Successfully parsed %d contracts from %s.", len(contracts), cuad_path)
+                logger.info(
+                    "Parsed %d contracts from real CUAD dataset. "
+                    "Category mapping: %d matched, %d unmatched.",
+                    len(contracts),
+                    category_match_stats["matched"],
+                    category_match_stats["unmatched"],
+                )
                 return contracts
-        except Exception as e:
-            logger.warning("Failed to parse CUAD file %s: %s. Falling back to mock dataset.", cuad_path, e)
 
-    logger.info("Using built-in mock CUAD dataset (41 standard categories supported).")
+        except Exception as e:
+            logger.warning("Failed to parse CUAD file %s: %s. Falling back to mock.", cuad_path, e)
+
+    logger.info("Using built-in mock CUAD dataset (%d contracts).", len(MOCK_CUAD_CONTRACTS))
     return MOCK_CUAD_CONTRACTS
 
 
@@ -506,13 +660,58 @@ def evaluate_contract_remote(
         return extracted_categories
 
 
+class BenchmarkMetrics(dict):
+    """
+    Dual-interface metrics container.
+    Supports backward-compatible category dict indexing (metrics[cat]),
+    category iteration, and len(metrics) == 41, while providing aggregate
+    metrics access (metrics['macro_f1'], metrics['micro_f1'], metrics['per_category']).
+    """
+
+    def __init__(self, per_category: dict[str, CategoryMetrics], **aggregates: Any) -> None:
+        super().__init__(**aggregates)
+        self["per_category"] = per_category
+        self._per_category = per_category
+
+    def __getitem__(self, key: str) -> Any:
+        if key in self._per_category:
+            return self._per_category[key]
+        return super().__getitem__(key)
+
+    def __contains__(self, key: object) -> bool:
+        return key in self._per_category or super().__contains__(key)
+
+    def __len__(self) -> int:
+        return len(self._per_category)
+
+    def __iter__(self):
+        return iter(self._per_category)
+
+    def keys(self):
+        return self._per_category.keys()
+
+    def values(self):
+        return self._per_category.values()
+
+    def items(self):
+        return self._per_category.items()
+
+
 def compute_metrics(
     eval_results: list[dict[str, Any]],
-) -> dict[str, CategoryMetrics]:
+) -> BenchmarkMetrics:
     """
     Calculates Precision, Recall, and F1-Score for each of the 41 CUAD categories.
+    Also computes Macro F1 and Micro F1 aggregate metrics.
+
+    Returns a BenchmarkMetrics dict with category mapping and aggregate statistics.
     """
-    metrics: dict[str, CategoryMetrics] = {}
+    per_category: dict[str, CategoryMetrics] = {}
+
+    # Micro-averaging accumulators (only over categories that appear in ground truth or predictions)
+    total_tp = 0
+    total_fp = 0
+    total_fn = 0
 
     for cat in ALL_41_CUAD_CATEGORIES:
         tp = 0
@@ -561,11 +760,13 @@ def compute_metrics(
         if f1 >= 0.70:
             tier = "STRONG (High F1)"
         elif f1 >= 0.40:
-            tier = "MODERATE"
+            tier = "MODERATE (Fair)"
+        elif gt_count == 0 and pred_count == 0:
+            tier = "N/A (absent)"
         else:
             tier = "LOW (Missed)"
 
-        metrics[cat] = {
+        per_category[cat] = {
             "category": cat,
             "ground_truth_count": gt_count,
             "predicted_count": pred_count,
@@ -578,18 +779,53 @@ def compute_metrics(
             "tier": tier,
         }
 
-    return metrics
+        # Accumulate micro totals (only for categories that actually appear)
+        total_tp += tp
+        total_fp += fp
+        total_fn += fn
 
+    # Macro-averaged metrics (average over all 41 categories)
+    all_metrics = list(per_category.values())
+    macro_prec = sum(m["precision"] for m in all_metrics) / len(all_metrics)
+    macro_rec = sum(m["recall"] for m in all_metrics) / len(all_metrics)
+    macro_f1 = sum(m["f1_score"] for m in all_metrics) / len(all_metrics)
 
-def render_evaluation_table(metrics: dict[str, CategoryMetrics]) -> str:
-    """
-    Formats the evaluation results into a clean, readable ASCII benchmark table.
-    """
-    sorted_metrics = sorted(
-        metrics.values(),
-        key=lambda x: (x["f1_score"], x["ground_truth_count"]),
-        reverse=True,
+    # Micro-averaged metrics (aggregate TP/FP/FN across all categories)
+    micro_prec = total_tp / (total_tp + total_fp) if (total_tp + total_fp) > 0 else 0.0
+    micro_rec = total_tp / (total_tp + total_fn) if (total_tp + total_fn) > 0 else 0.0
+    micro_f1 = (2 * micro_prec * micro_rec) / (micro_prec + micro_rec) if (micro_prec + micro_rec) > 0 else 0.0
+
+    return BenchmarkMetrics(
+        per_category=per_category,
+        macro_precision=round(macro_prec, 4),
+        macro_recall=round(macro_rec, 4),
+        macro_f1=round(macro_f1, 4),
+        micro_precision=round(micro_prec, 4),
+        micro_recall=round(micro_rec, 4),
+        micro_f1=round(micro_f1, 4),
+        num_contracts=len(eval_results),
     )
+
+
+def render_evaluation_table(metrics: dict[str, Any], dataset_source: str = "CUAD Real") -> str:
+    """
+    Formats the evaluation results into a clean, readable ASCII benchmark table
+    with both Macro and Micro F1 scores.
+
+    Args:
+        metrics: Output from compute_metrics().
+        dataset_source: Label for the dataset source (e.g., 'CUAD Real', 'Mock').
+
+    Returns:
+        Formatted multi-line string with the benchmark table.
+    """
+    per_category = metrics.get("per_category") or metrics
+
+    # Sort: active categories (with GT or predictions) first by F1 desc, then absent categories
+    active = [m for m in per_category.values() if m["ground_truth_count"] > 0 or m["predicted_count"] > 0]
+    absent = [m for m in per_category.values() if m["ground_truth_count"] == 0 and m["predicted_count"] == 0]
+
+    sorted_active = sorted(active, key=lambda x: (x["f1_score"], x["ground_truth_count"]), reverse=True)
 
     header = (
         f"{'Category':<36} | {'GT':<4} | {'Pred':<4} | {'TP':<3} | {'FP':<3} | {'FN':<3} | "
@@ -597,44 +833,73 @@ def render_evaluation_table(metrics: dict[str, CategoryMetrics]) -> str:
     )
     divider = "-" * len(header)
 
+    num_contracts = metrics.get("num_contracts", len(metrics))
     lines = [
         "",
         "=" * len(header),
-        "CUAD 41-CLAUSE BENCHMARK ACCURACY EVALUATION REPORT",
+        f"CUAD 41-CLAUSE BENCHMARK ACCURACY EVALUATION REPORT — {dataset_source.upper()} ({num_contracts} contracts)",
         "=" * len(header),
         header,
         divider,
     ]
 
-    for m in sorted_metrics:
+    for m in sorted_active:
         lines.append(
             f"{m['category']:<36} | {m['ground_truth_count']:<4} | {m['predicted_count']:<4} | "
             f"{m['true_positives']:<3} | {m['false_positives']:<3} | {m['false_negatives']:<3} | "
             f"{m['precision']*100:>8.1f}% | {m['recall']*100:>7.1f}% | {m['f1_score']:>8.4f} | {m['tier']:<16}"
         )
 
+    if absent:
+        lines.append(divider)
+        lines.append(f"  ({len(absent)} categories absent from both ground truth and predictions — omitted)")
+
     lines.append(divider)
 
-    # Summary groupings
-    high_f1 = [m["category"] for m in sorted_metrics if m["f1_score"] >= 0.70]
-    mod_f1 = [m["category"] for m in sorted_metrics if 0.40 <= m["f1_score"] < 0.70]
-    low_f1 = [m["category"] for m in sorted_metrics if m["f1_score"] < 0.40]
+    # Focus categories: the ones recently fixed
+    focus_cats = ["Governing Law", "Agreement Date", "Anti-Assignment", "Insurance"]
+    lines.append("")
+    lines.append("FOCUS CATEGORIES (Recently Fixed):")
+    lines.append(f"  {'Category':<36} | {'Precision':<10} | {'Recall':<10} | {'F1':<8}")
+    lines.append(f"  {'-'*36} | {'-'*10} | {'-'*10} | {'-'*8}")
+    for cat in focus_cats:
+        m = per_category.get(cat)
+        if m:
+            lines.append(
+                f"  {cat:<36} | {m['precision']*100:>8.1f}%  | {m['recall']*100:>8.1f}%  | {m['f1_score']:>8.4f}"
+            )
 
-    macro_f1 = sum(m["f1_score"] for m in sorted_metrics) / len(sorted_metrics)
-    macro_prec = sum(m["precision"] for m in sorted_metrics) / len(sorted_metrics)
-    macro_rec = sum(m["recall"] for m in sorted_metrics) / len(sorted_metrics)
+    # Summary
+    high_f1 = [m["category"] for m in sorted_active if m["f1_score"] >= 0.70]
+    mod_f1 = [m["category"] for m in sorted_active if 0.40 <= m["f1_score"] < 0.70]
+    low_f1 = [m["category"] for m in sorted_active if m["f1_score"] < 0.40]
+
+    macro_p = metrics.get("macro_precision", 0.0)
+    macro_r = metrics.get("macro_recall", 0.0)
+    macro_f = metrics.get("macro_f1", 0.0)
+    micro_p = metrics.get("micro_precision", 0.0)
+    micro_r = metrics.get("micro_recall", 0.0)
+    micro_f = metrics.get("micro_f1", 0.0)
 
     lines.extend([
         "",
         "SUMMARY INSIGHTS:",
         f"  * High F1 Categories (Strong System Performance): {len(high_f1)}/41 clauses",
-        f"    Examples: {', '.join(high_f1[:8]) if high_f1 else 'None'}",
         f"  * Moderate F1 Categories: {len(mod_f1)}/41 clauses",
-        f"    Examples: {', '.join(mod_f1[:6]) if mod_f1 else 'None'}",
         f"  * Low F1 / Missed Categories (Needs Improvement): {len(low_f1)}/41 clauses",
-        f"    Examples: {', '.join(low_f1[:8]) if low_f1 else 'None'}",
+        f"  * Absent Categories (not tested): {len(absent)}/41 clauses",
         "",
-        f"OVERALL MACRO METRICS: Precision: {macro_prec*100:.2f}% | Recall: {macro_rec*100:.2f}% | Macro F1: {macro_f1:.4f}",
+        f"OVERALL MACRO METRICS: Precision: {macro_p*100:.2f}% | Recall: {macro_r*100:.2f}% | Macro F1: {macro_f:.4f}",
+        "",
+        "AGGREGATE METRICS:",
+        f"  Macro Precision: {macro_p*100:.2f}%",
+        f"  Macro Recall:    {macro_rec*100:.2f}%" if "macro_rec" in locals() else f"  Macro Recall:    {macro_r*100:.2f}%",
+        f"  Macro F1:        {macro_f:.4f}",
+        f"  Micro Precision: {micro_p*100:.2f}%",
+        f"  Micro Recall:    {micro_r*100:.2f}%",
+        f"  Micro F1:        {micro_f:.4f}",
+        "",
+        f"  Dataset: {dataset_source} | Contracts evaluated: {num_contracts}",
         "=" * len(header),
         "",
     ])
@@ -643,48 +908,67 @@ def render_evaluation_table(metrics: dict[str, CategoryMetrics]) -> str:
 
 
 def run_evaluation(
-    num_contracts: int = 5,
+    num_contracts: int = 30,
     cuad_path: str | None = None,
     force_mock: bool = False,
-    attempt_download: bool = False,
+    auto_download: bool = True,
     api_url: str | None = None,
     seed: int = 42,
     output_json: str | None = None,
-) -> tuple[dict[str, CategoryMetrics], str]:
+) -> tuple[dict[str, Any], str]:
     """
     Main evaluation pipeline:
     1. Loads or downloads the CUAD dataset.
     2. Samples `num_contracts` randomly.
-    3. Executes each through the `/api/v1/documents/{id}/process` pipeline.
+    3. Executes each through the /api/v1/documents/{id}/process pipeline.
     4. Evaluates predictions against annotations.
     5. Returns computed metrics and formatted output table.
     """
     random.seed(seed)
+    start_time = time.time()
 
-    if attempt_download and not cuad_path:
-        cuad_path = download_cuad_dataset()
-
-    dataset = load_cuad_dataset(cuad_path=cuad_path, force_mock=force_mock)
+    dataset = load_cuad_dataset(
+        cuad_path=cuad_path,
+        force_mock=force_mock,
+        auto_download=auto_download,
+    )
     if not dataset:
         raise ValueError("No contracts available in CUAD dataset.")
+
+    is_real = not force_mock and len(dataset) > len(MOCK_CUAD_CONTRACTS)
+    dataset_source = "CUAD Real" if is_real else "Mock"
 
     # Sample random contracts
     sample_size = min(num_contracts, len(dataset))
     sampled_contracts = random.sample(dataset, sample_size)
-    logger.info("Evaluating %d randomly sampled contracts...", sample_size)
+    logger.info(
+        "Evaluating %d randomly sampled contracts from %s dataset (%d total available)...",
+        sample_size, dataset_source, len(dataset),
+    )
 
     eval_results: list[dict[str, Any]] = []
 
     if api_url:
         logger.info("Running evaluation against remote API server at %s...", api_url)
         for idx, contract in enumerate(sampled_contracts, 1):
-            logger.info("Processing contract %d/%d: %s", idx, sample_size, contract["title"])
-            pred = evaluate_contract_remote(contract, api_url)
-            eval_results.append({
-                "contract": contract["title"],
-                "ground_truth": contract["ground_truth_categories"],
-                "predicted": pred,
-            })
+            logger.info(
+                "[%d/%d] Processing: %s (GT categories: %d)",
+                idx, sample_size, contract["title"][:60], len(contract["ground_truth_categories"]),
+            )
+            try:
+                pred = evaluate_contract_remote(contract, api_url)
+                eval_results.append({
+                    "contract": contract["title"],
+                    "ground_truth": contract["ground_truth_categories"],
+                    "predicted": pred,
+                })
+            except Exception as e:
+                logger.error("[%d/%d] Failed: %s — %s", idx, sample_size, contract["title"][:50], e)
+                eval_results.append({
+                    "contract": contract["title"],
+                    "ground_truth": contract["ground_truth_categories"],
+                    "predicted": set(),
+                })
     else:
         logger.info("Running evaluation in-process via FastAPI TestClient...")
         from sqlalchemy import create_engine
@@ -720,6 +1004,10 @@ def run_evaluation(
                 db.commit()
             return user
 
+        from app.core.limiter import limiter
+        limiter_prev_enabled = getattr(limiter, "enabled", True)
+        limiter.enabled = False
+
         app.dependency_overrides[get_db] = test_get_db
         app.dependency_overrides[get_current_user] = test_get_user
 
@@ -728,26 +1016,76 @@ def run_evaluation(
 
         try:
             for idx, contract in enumerate(sampled_contracts, 1):
-                logger.info("Processing contract %d/%d: %s", idx, sample_size, contract["title"])
-                pred = evaluate_contract_in_process(contract, client, db_session)
-                eval_results.append({
-                    "contract": contract["title"],
-                    "ground_truth": contract["ground_truth_categories"],
-                    "predicted": pred,
-                })
+                logger.info(
+                    "[%d/%d] Processing: %s (GT: %d categories, text: %d chars)",
+                    idx, sample_size,
+                    contract["title"][:60],
+                    len(contract["ground_truth_categories"]),
+                    len(contract["text"]),
+                )
+                try:
+                    pred = evaluate_contract_in_process(contract, client, db_session)
+                    eval_results.append({
+                        "contract": contract["title"],
+                        "ground_truth": contract["ground_truth_categories"],
+                        "predicted": pred,
+                    })
+                    logger.info(
+                        "  -> Predicted %d categories. Match: %d/%d GT found",
+                        len(pred),
+                        len(pred & contract["ground_truth_categories"]),
+                        len(contract["ground_truth_categories"]),
+                    )
+                except Exception as e:
+                    logger.error("[%d/%d] Pipeline error for %s: %s", idx, sample_size, contract["title"][:50], e)
+                    eval_results.append({
+                        "contract": contract["title"],
+                        "ground_truth": contract["ground_truth_categories"],
+                        "predicted": set(),
+                    })
         finally:
+            limiter.enabled = limiter_prev_enabled
             db_session.close()
             app.dependency_overrides.clear()
 
+    elapsed = time.time() - start_time
+
     # Calculate metrics and render report
     metrics = compute_metrics(eval_results)
-    table_str = render_evaluation_table(metrics)
+    table_str = render_evaluation_table(metrics, dataset_source)
+
+    # Append timing
+    table_str += f"\nEvaluation completed in {elapsed:.1f} seconds ({elapsed/sample_size:.1f}s per contract).\n"
 
     if output_json:
+        # Serialize sets to lists for JSON
+        serializable_results = []
+        for r in eval_results:
+            serializable_results.append({
+                "contract": r["contract"],
+                "ground_truth": sorted(r["ground_truth"]),
+                "predicted": sorted(r["predicted"]),
+                "true_positives": sorted(r["ground_truth"] & r["predicted"]),
+                "false_negatives": sorted(r["ground_truth"] - r["predicted"]),
+                "false_positives": sorted(r["predicted"] - r["ground_truth"]),
+            })
+
         out_payload = {
+            "dataset_source": dataset_source,
             "num_evaluated_contracts": len(sampled_contracts),
-            "contracts": [c["title"] for c in sampled_contracts],
-            "metrics": metrics,
+            "seed": seed,
+            "elapsed_seconds": round(elapsed, 2),
+            "aggregate_metrics": {
+                "macro_precision": metrics["macro_precision"],
+                "macro_recall": metrics["macro_recall"],
+                "macro_f1": metrics["macro_f1"],
+                "micro_precision": metrics["micro_precision"],
+                "micro_recall": metrics["micro_recall"],
+                "micro_f1": metrics["micro_f1"],
+            },
+            "per_category_metrics": metrics["per_category"],
+            "metrics": metrics["per_category"],
+            "per_contract_results": serializable_results,
         }
         with open(output_json, "w", encoding="utf-8") as f:
             json.dump(out_payload, f, indent=2)
@@ -758,11 +1096,23 @@ def run_evaluation(
 
 def main() -> None:
     """CLI entrypoint."""
-    parser = argparse.ArgumentParser(description="Evaluate Legal Analyzer against the CUAD 41-clause dataset.")
-    parser.add_argument("--num-contracts", type=int, default=5, help="Number of random contracts to evaluate (default: 5)")
+    parser = argparse.ArgumentParser(
+        description="Evaluate Legal Analyzer against the CUAD 41-clause dataset.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Examples:\n"
+            "  # Run on 30 real CUAD contracts (auto-downloads dataset):\n"
+            "  .venv/Scripts/python -m scripts.evaluate_contracts --num-contracts 30\n\n"
+            "  # Quick sanity check with mock data:\n"
+            "  .venv/Scripts/python -m scripts.evaluate_contracts --mock --num-contracts 5\n\n"
+            "  # Save results to JSON:\n"
+            "  .venv/Scripts/python -m scripts.evaluate_contracts --output-json cuad_benchmark.json\n"
+        ),
+    )
+    parser.add_argument("--num-contracts", type=int, default=30, help="Number of random contracts to evaluate (default: 30)")
     parser.add_argument("--cuad-path", type=str, default=None, help="Path to local CUAD_v1.json dataset file")
     parser.add_argument("--mock", action="store_true", help="Force using built-in mock CUAD dataset")
-    parser.add_argument("--download", action="store_true", help="Attempt downloading official CUAD dataset")
+    parser.add_argument("--no-download", action="store_true", help="Skip auto-download if dataset not found")
     parser.add_argument("--api-url", type=str, default=None, help="Remote backend URL (default: in-process)")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for sampling (default: 42)")
     parser.add_argument("--output-json", type=str, default=None, help="Save evaluation metrics to JSON file")
@@ -773,7 +1123,7 @@ def main() -> None:
         num_contracts=args.num_contracts,
         cuad_path=args.cuad_path,
         force_mock=args.mock,
-        attempt_download=args.download,
+        auto_download=not args.no_download,
         api_url=args.api_url,
         seed=args.seed,
         output_json=args.output_json,
