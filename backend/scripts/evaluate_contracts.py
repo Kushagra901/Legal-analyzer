@@ -893,7 +893,7 @@ def render_evaluation_table(metrics: dict[str, Any], dataset_source: str = "CUAD
         "",
         "AGGREGATE METRICS:",
         f"  Macro Precision: {macro_p*100:.2f}%",
-        f"  Macro Recall:    {macro_rec*100:.2f}%" if "macro_rec" in locals() else f"  Macro Recall:    {macro_r*100:.2f}%",
+        f"  Macro Recall:    {macro_r*100:.2f}%",
         f"  Macro F1:        {macro_f:.4f}",
         f"  Micro Precision: {micro_p*100:.2f}%",
         f"  Micro Recall:    {micro_r*100:.2f}%",
