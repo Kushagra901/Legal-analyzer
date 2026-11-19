@@ -53,8 +53,8 @@ export const UploadDropzone: React.FC<UploadDropzoneProps> = ({ onUploadSuccess 
       if (onUploadSuccess) {
         onUploadSuccess(data);
       }
-    } catch (err: any) {
-      setErrorMessage(err.message || "Failed to upload document. Please try again.");
+    } catch (err: unknown) {
+      setErrorMessage(err instanceof Error ? err.message : "Failed to upload document. Please try again.");
     } finally {
       setIsUploading(false);
     }

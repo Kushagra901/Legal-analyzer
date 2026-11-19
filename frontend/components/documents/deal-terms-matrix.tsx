@@ -5,7 +5,7 @@ import { apiClient, DeepExtractionResponse } from "@/lib/api/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 
 interface DealTermsMatrixProps {
   documentId: string;
@@ -22,8 +22,8 @@ export function DealTermsMatrix({ documentId }: DealTermsMatrixProps) {
         setLoading(true);
         const extraction = await apiClient.getDeepExtraction(documentId);
         setData(extraction);
-      } catch (err: any) {
-        setError(err.message || "Failed to load deal terms");
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : "Failed to load deal terms");
       } finally {
         setLoading(false);
       }

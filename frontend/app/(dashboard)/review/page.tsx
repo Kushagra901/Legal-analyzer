@@ -5,7 +5,7 @@ import Link from "next/link";
 import { apiClient } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -110,9 +110,9 @@ export default function ReviewQueuePage() {
       setTimeout(() => {
         setNotification(null);
       }, 5000);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to persist review action:", err);
-      alert(err.message || "Failed to persist clause review decision.");
+      alert(err instanceof Error ? err.message : "Failed to persist clause review decision.");
     } finally {
       setSubmittingIndex(null);
     }

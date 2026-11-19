@@ -14,7 +14,6 @@ import pytest
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from scripts.download_cuad import (
-    DEFAULT_DESTINATION,
     MIN_VALID_SIZE_BYTES,
     download_cuad_dataset,
 )

@@ -34,7 +34,7 @@ interface DocumentDetail {
   original_text?: string;
   extracted_text?: string;
   analysis?: {
-    summary?: string | any;
+    summary?: string | Record<string, unknown>;
     safety_score?: number;
     risk_level?: string;
     clauses?: ClauseItem[];
@@ -46,9 +46,9 @@ interface DocumentDetail {
     extracted_text?: string;
     original_text?: string;
     document_overview?: string;
-    parties?: string[] | any;
-    key_dates?: Record<string, any> | any;
-    key_terms?: string[] | any;
+    parties?: string[] | unknown;
+    key_dates?: Record<string, unknown>;
+    key_terms?: string[] | unknown;
     missing_sections?: string[];
     plain_english_summary?: string;
     recommendations?: string[];
@@ -120,9 +120,9 @@ export default function DocumentDetailPage({
             }
           }, 2000);
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (!isMounted) return;
-        setError(err.message || "Failed to load document analysis.");
+        setError(err instanceof Error ? err.message : "Failed to load document analysis.");
       } finally {
         if (isMounted && isInitial) {
           setLoading(false);
@@ -146,9 +146,9 @@ export default function DocumentDetailPage({
         setEscalated(true);
         setDocument((prev) => (prev ? { ...prev, status: "escalated" } : prev));
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("Failed to escalate document:", e);
-      alert(e.message || "Failed to escalate document for human review.");
+      alert(e instanceof Error ? e.message : "Failed to escalate document for human review.");
     }
   };
 
@@ -158,9 +158,9 @@ export default function DocumentDetailPage({
     try {
       await apiClient.deleteDocument(docId);
       router.push("/dashboard");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to delete document:", err);
-      setDeleteError(err.message || "Failed to delete document. Please try again.");
+      setDeleteError(err instanceof Error ? err.message : "Failed to delete document. Please try again.");
     } finally {
       setDeleting(false);
     }
@@ -513,7 +513,7 @@ export default function DocumentDetailPage({
                   <p className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wider">Executive Overview</p>
                   <p className="text-xs text-[var(--text-main)] mt-1 leading-snug">
                     {typeof analysis.summary === "object" && analysis.summary !== null
-                      ? (analysis.summary.risk_posture || "Summary generation pending.")
+                      ? (String((analysis.summary as Record<string, unknown>).risk_posture || "Summary generation pending."))
                       : (analysis.summary || "Summary generation pending.")}
                   </p>
                 </div>

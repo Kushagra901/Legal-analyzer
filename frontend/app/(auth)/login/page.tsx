@@ -31,8 +31,8 @@ export default function LoginPage() {
       } else {
         router.push("/dashboard");
       }
-    } catch (err: any) {
-      setError(err.message || "An unexpected error occurred.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "An unexpected error occurred.");
     } finally {
       setLoading(false);
     }
@@ -94,7 +94,7 @@ export default function LoginPage() {
             </form>
           </CardContent>
           <CardFooter className="flex justify-between items-center text-xs">
-            <span className="text-[var(--text-muted)]">Don't have an account?</span>
+            <span className="text-[var(--text-muted)]">Don&apos;t have an account?</span>
             <Link href="/signup" className="font-semibold text-[var(--accent-primary)] hover:underline">
               Create Account
             </Link>

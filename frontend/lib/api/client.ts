@@ -58,9 +58,9 @@ export interface AnalysisDetailResponse {
   extracted_text?: string;
   original_text?: string;
   document_overview?: string;
-  parties?: string[] | any;
-  key_dates?: Record<string, any> | any;
-  key_terms?: string[] | any;
+  parties?: string[] | unknown;
+  key_dates?: Record<string, unknown>;
+  key_terms?: string[] | unknown;
   missing_sections?: string[];
   plain_english_summary?: string;
   recommendations?: string[];
@@ -81,7 +81,7 @@ export interface ReportResponse {
   document_id: string;
   filename: string;
   summary: string;
-  key_terms?: string[] | any;
+  key_terms?: string[] | unknown;
   safety_score: number;
   risk_level: string;
   clauses: ClauseResponse[];

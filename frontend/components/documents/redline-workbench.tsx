@@ -23,8 +23,8 @@ export function RedlineWorkbench({ documentId }: RedlineWorkbenchProps) {
         setLoading(true);
         const extraction = await apiClient.getDeepExtraction(documentId);
         setData(extraction);
-      } catch (err: any) {
-        setError(err.message || "Failed to load redlines");
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : "Failed to load redlines");
       } finally {
         setLoading(false);
       }

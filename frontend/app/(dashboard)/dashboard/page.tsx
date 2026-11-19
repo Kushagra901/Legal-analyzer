@@ -35,8 +35,8 @@ export default function DashboardPage() {
       try {
         const data = await apiClient.getDocuments();
         setDocuments(data.items || (Array.isArray(data) ? data : []));
-      } catch (err: any) {
-        setError(err.message || "Failed to load documents.");
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : "Failed to load documents.");
       } finally {
         setLoading(false);
       }

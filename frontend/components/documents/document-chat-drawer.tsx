@@ -1,17 +1,22 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { apiClient, ChatHistoryItem, ChatCitationResponse, SourceChunk } from "@/lib/api/client";
+import { apiClient, ChatHistoryItem } from "@/lib/api/client";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface DocumentChatDrawerProps {
   documentId: string;
   onSelectSnippet?: (snippetText: string) => void;
   activeSnippet?: string | null;
+}
+
+let messageSeq = 0;
+function nextMessageId(role: string): string {
+  messageSeq += 1;
+  return `${role}-${messageSeq}`;
 }
 
 export function DocumentChatDrawer({
@@ -57,7 +62,7 @@ export function DocumentChatDrawer({
     if (!query.trim() || sending) return;
 
     const userMessage: ChatHistoryItem = {
-      id: Date.now().toString(),
+      id: nextMessageId("user"),
       role: "user",
       content: query,
       citations: [],
@@ -71,7 +76,7 @@ export function DocumentChatDrawer({
     try {
       const response = await apiClient.sendDocumentChat(documentId, query);
       const assistantMessage: ChatHistoryItem = {
-        id: (Date.now() + 1).toString(),
+        id: nextMessageId("assistant"),
         role: "assistant",
         content: response.answer,
         citations: response.citations || [],
