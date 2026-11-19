@@ -41,11 +41,12 @@ export default function AdminPage() {
         const dataLogs = await apiClient.getAuditLogs();
         setLogs(dataLogs.items || (Array.isArray(dataLogs) ? dataLogs : []));
         setError(null);
-      } catch (err: any) {
-        if (err.message && (err.message.includes("403") || err.message.toLowerCase().includes("access denied"))) {
+      } catch (err: unknown) {
+        const errorMsg = err instanceof Error ? err.message : "Failed to load audit logs.";
+        if (errorMsg.includes("403") || errorMsg.toLowerCase().includes("access denied")) {
           setAccessDenied(true);
         } else {
-          setError(err.message || "Failed to load audit logs.");
+          setError(errorMsg);
         }
       } finally {
         setIsLoading(false);

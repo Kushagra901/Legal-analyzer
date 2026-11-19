@@ -3,7 +3,6 @@ Unit tests for deterministic regex prefilter and LLM prompt disambiguation in LL
 Tests Governing Law, Agreement Date, and No-Solicit Of Employees/Customers extraction.
 """
 from typing import Any
-import pytest
 
 from app.models.schemas import ClauseCategory
 from app.services.llm_service import LLMService, extract_deterministic_prefilter

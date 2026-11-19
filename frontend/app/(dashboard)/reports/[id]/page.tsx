@@ -48,8 +48,8 @@ export default function ReportPage({
       try {
         const data = await apiClient.getReport(docId);
         setReport(data);
-      } catch (err: any) {
-        setError(err.message || "Failed to load report.");
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : "Failed to load report.");
       } finally {
         setLoading(false);
       }
@@ -152,7 +152,7 @@ export default function ReportPage({
           </h2>
           <p className="text-xs leading-relaxed text-[var(--text-main)] bg-[var(--bg-page)] p-4 border border-[var(--border-subtle)]">
             {typeof report.summary === "object" && report.summary !== null
-              ? ((report.summary as any).risk_posture || "No executive summary available for this contract.")
+              ? ((report.summary as Record<string, string>).risk_posture || "No executive summary available for this contract.")
               : (report.summary || "No executive summary available for this contract.")}
           </p>
         </section>

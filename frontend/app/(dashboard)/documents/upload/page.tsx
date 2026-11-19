@@ -2,7 +2,6 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { UploadDropzone } from "@/components/documents/upload-dropzone";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,7 +9,6 @@ import { Badge } from "@/components/ui/badge";
 import { apiClient, QuickSummaryResponse } from "@/lib/api/client";
 
 export default function DocumentUploadPage() {
-  const router = useRouter();
   const [successDocId, setSuccessDocId] = useState<string | null>(null);
   const [quickSummary, setQuickSummary] = useState<QuickSummaryResponse | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
@@ -80,7 +78,13 @@ export default function DocumentUploadPage() {
                       <span className="text-xs font-serif font-bold text-[var(--accent-primary)]">
                         {quickSummary.document_type}
                       </span>
-                      <Badge variant={quickSummary.estimated_risk_level.toLowerCase() as any}>
+                      <Badge variant={
+                        quickSummary.estimated_risk_level.toLowerCase() === "low" ||
+                        quickSummary.estimated_risk_level.toLowerCase() === "medium" ||
+                        quickSummary.estimated_risk_level.toLowerCase() === "high"
+                          ? (quickSummary.estimated_risk_level.toLowerCase() as "low" | "medium" | "high")
+                          : "neutral"
+                      }>
                         {quickSummary.estimated_risk_level} Risk Initial Est.
                       </Badge>
                     </div>

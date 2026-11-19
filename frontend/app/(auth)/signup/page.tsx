@@ -41,8 +41,8 @@ export default function SignupPage() {
           router.push("/dashboard");
         }, 1500);
       }
-    } catch (err: any) {
-      setError(err.message || "An unexpected error occurred.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "An unexpected error occurred.");
     } finally {
       setLoading(false);
     }
